@@ -6,9 +6,10 @@ Cubinhos 3D é uma aplicação estática para alunos do 1.º ciclo planearem con
 
 1. Abre `index.html` ou publica este repositório no GitHub Pages.
 2. Escolhe um bloco na paleta.
-3. Constrói por camadas numa grelha 32×32×32.
-4. Guarda no browser ou descarrega o projeto JSON para continuar depois.
-5. Clica em **Exportar .mcstructure**.
+3. Constrói por camadas ou muda para o **modo isométrico assistido** para construir numa vista mais parecida com Minecraft Education.
+4. Usa rotação e zoom para ver à volta; o mapa de camadas ajuda a não perder a altura atual.
+5. Guarda no browser ou descarrega o projeto JSON para continuar depois.
+6. Clica em **Exportar .mcstructure**.
 
 ## Importar no Minecraft Education / Bedrock
 
@@ -29,6 +30,7 @@ Incluído:
 - grelha 32×32×32;
 - paleta infantil de blocos reais;
 - colocar, apagar, preencher camada, desfazer/refazer;
+- modo isométrico assistido por camada com rotação, zoom e mapa de orientação;
 - guardar/abrir localmente;
 - exportar `.mcstructure` sem entidades.
 

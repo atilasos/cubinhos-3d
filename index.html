@@ -32,8 +32,12 @@
     <section class="panel editor-panel" aria-labelledby="editor-title">
       <div class="panel-heading">
         <div>
-          <h2 id="editor-title">2. Constrói por camadas</h2>
+          <h2 id="editor-title">2. Constrói</h2>
           <p>Camada <strong id="layerValue">0</strong> de 31</p>
+          <div class="mode-toggle" aria-label="Modo de construção">
+            <button id="modeLayer" class="active" type="button">Camadas</button>
+            <button id="modeIso" type="button">Isométrico</button>
+          </div>
         </div>
         <div class="tools" aria-label="Ferramentas">
           <button id="toolPaint" class="active" type="button">Colocar</button>
@@ -46,7 +50,23 @@
       </div>
       <label class="layer-control" for="layer">Altura da camada</label>
       <input id="layer" type="range" min="0" max="31" value="0">
-      <div id="grid" class="grid" aria-label="Grelha da camada atual"></div>
+      <div id="layerWorkspace">
+        <div id="grid" class="grid" aria-label="Grelha da camada atual"></div>
+      </div>
+      <div id="isoWorkspace" class="iso-workspace hidden">
+        <div class="iso-controls" aria-label="Controlos isométricos">
+          <button id="rotateLeft" type="button">⟲ Rodar</button>
+          <label for="isoZoom">Zoom</label>
+          <input id="isoZoom" type="range" min="0.6" max="1.8" step="0.1" value="1">
+          <button id="rotateRight" type="button">Rodar ⟳</button>
+        </div>
+        <canvas id="isoBuilder" width="620" height="460" aria-label="Construção isométrica assistida por camada"></canvas>
+        <aside class="layer-map-card" aria-label="Mapa de orientação por camadas">
+          <h3>Mapa da camada</h3>
+          <canvas id="layerMap" width="180" height="180" aria-label="Mapa de orientação da camada atual"></canvas>
+          <p class="hint">Mapa de orientação: mostra a camada atual e onde há cubinhos.</p>
+        </aside>
+      </div>
     </section>
 
     <section class="panel preview-panel" aria-labelledby="preview-title">
@@ -58,6 +78,7 @@
         <button data-view="top" type="button">Topo</button>
         <button data-view="iso" type="button">3D</button>
       </div>
+      <p class="hint">A rotação e o zoom do modo isométrico também atualizam esta previsualização.</p>
       <ol class="instructions">
         <li>No Minecraft Education/Bedrock, abre um mundo criativo como anfitrião.</li>
         <li>Usa <code>/give @s structure_block</code> e coloca o Structure Block.</li>

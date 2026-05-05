@@ -16,3 +16,20 @@ test('README documents Minecraft Education import caveat', async () => {
   assert.match(readme, /Windows/i);
   assert.match(readme, /\.mcstructure/);
 });
+
+
+test('isometric build mode shell exposes mode toggle, canvas, map, rotation and zoom controls', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /id="modeLayer"/);
+  assert.match(html, /id="modeIso"/);
+  assert.match(html, /id="isoBuilder"/);
+  assert.match(html, /id="layerMap"/);
+  assert.match(html, /id="isoZoom"/);
+  assert.match(html, /id="rotateLeft"/);
+  assert.match(html, /id="rotateRight"/);
+});
+
+test('README documents the assisted isometric mode', async () => {
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
+  assert.match(readme, /modo isométrico assistido/i);
+});
