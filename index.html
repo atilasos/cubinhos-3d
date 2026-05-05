@@ -11,14 +11,14 @@
     <div>
       <p class="eyebrow">Minecraft Education • 1.º ciclo</p>
       <h1>Construtor Voxel 3D</h1>
-      <p>Planeia uma construção em blocos reais do Minecraft, guarda o projeto e exporta um ficheiro <code>.mcstructure</code>.</p>
+      <p>Planeia uma construção em blocos reais do Minecraft e usa um único ficheiro <code>.mcstructure</code> para guardar, abrir e importar.</p>
     </div>
     <div class="hero-actions">
       <button id="saveLocal" type="button">Guardar no browser</button>
       <button id="loadLocal" type="button">Abrir do browser</button>
-      <button id="downloadProject" type="button">Descarregar projeto</button>
-      <label class="file-button">Abrir projeto <input id="openProject" type="file" accept="application/json,.json"></label>
-      <button id="exportStructure" class="primary" type="button">Exportar .mcstructure</button>
+      <button id="downloadProject" type="button">Descarregar .mcstructure</button>
+      <label class="file-button">Abrir .mcstructure <input id="openProject" type="file" accept=".mcstructure,application/octet-stream"></label>
+      <button id="exportStructure" class="primary" type="button">Usar no Minecraft</button>
     </div>
   </header>
 
@@ -26,14 +26,14 @@
     <section class="panel palette-panel" aria-labelledby="palette-title">
       <h2 id="palette-title">1. Escolhe um bloco</h2>
       <div id="palette" class="palette" role="list"></div>
-      <p class="hint">A paleta usa blocos reais. Mais blocos podem ser adicionados depois de validar a importação.</p>
+      <p class="hint">A paleta está organizada por famílias de cores e usa materiais reais do Minecraft.</p>
     </section>
 
     <section class="panel editor-panel" aria-labelledby="editor-title">
       <div class="panel-heading">
         <div>
           <h2 id="editor-title">2. Constrói</h2>
-          <p>Camada <strong id="layerValue">0</strong> de 31</p>
+          <p>Camada <strong id="layerValue">0</strong> de <strong id="layerMax">31</strong></p>
           <div class="mode-toggle" aria-label="Modo de construção">
             <button id="modeLayer" class="active" type="button">Camadas</button>
             <button id="modeIso" type="button">Isométrico</button>
@@ -82,7 +82,7 @@
       <ol class="instructions">
         <li>No Minecraft Education/Bedrock, abre um mundo criativo como anfitrião.</li>
         <li>Usa <code>/give @s structure_block</code> e coloca o Structure Block.</li>
-        <li>Muda para Load/Import e escolhe o ficheiro exportado.</li>
+        <li>Muda para Load/Import e escolhe o mesmo ficheiro .mcstructure.</li>
       </ol>
     </section>
   </main>

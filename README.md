@@ -1,15 +1,27 @@
 # Cubinhos 3D — Construtor Voxel para Minecraft Education
 
-Cubinhos 3D é uma aplicação estática para alunos do 1.º ciclo planearem construções em blocos reais do Minecraft e exportarem um ficheiro `.mcstructure`.
+Cubinhos 3D é uma aplicação estática para alunos do 1.º ciclo planearem construções em blocos reais do Minecraft. Usa um único ficheiro `.mcstructure` para guardar, abrir novamente no Cubinhos 3D e importar no Minecraft Education/Bedrock.
 
 ## Como usar
 
 1. Abre `index.html` ou publica este repositório no GitHub Pages.
-2. Escolhe um bloco na paleta.
+2. Escolhe um bloco na paleta organizada por famílias de cores e materiais.
 3. Constrói por camadas ou muda para o **modo isométrico assistido** para construir numa vista mais parecida com Minecraft Education.
 4. Usa rotação e zoom para ver à volta; o mapa de camadas ajuda a não perder a altura atual.
-5. Guarda no browser ou descarrega o projeto JSON para continuar depois.
-6. Clica em **Exportar .mcstructure**.
+5. Clica em **Descarregar .mcstructure** para guardar o projeto num ficheiro.
+6. Mais tarde, usa **Abrir .mcstructure** para continuar a editar o mesmo projeto.
+7. O mesmo ficheiro também pode ser usado em **Usar no Minecraft** / Structure Block.
+
+## Ficheiro único `.mcstructure`
+
+A interface deixou de usar ficheiros JSON para projetos. O formato visível para professores e crianças é apenas `.mcstructure`.
+
+O Cubinhos 3D também tenta abrir estruturas `.mcstructure` simples criadas fora da aplicação. Esta importação é **best-effort**:
+
+- importa blocos simples através da paleta da estrutura;
+- respeita o limite 32×32×32 da sala de aula;
+- ignora entidades, baús, inventários, redstone, dados avançados de blocos e camada secundária;
+- mostra avisos amigáveis quando alguma parte não é suportada.
 
 ## Importar no Minecraft Education / Bedrock
 
@@ -23,23 +35,25 @@ Fluxo recomendado:
 4. Usa **Import** para escolher o ficheiro `.mcstructure` exportado.
 5. Confirma a caixa de limites e clica em **Load**.
 
-## Escopo da primeira versão
+## Escopo atual
 
 Incluído:
 - site estático compatível com GitHub Pages;
 - grelha 32×32×32;
-- paleta infantil de blocos reais;
+- paleta infantil com mais materiais reais do Minecraft, organizada por cores/famílias;
 - colocar, apagar, preencher camada, desfazer/refazer;
 - modo isométrico assistido por camada com rotação, zoom e mapa de orientação;
-- guardar/abrir localmente;
-- exportar `.mcstructure` sem entidades.
+- guardar/abrir localmente no browser;
+- descarregar e abrir projetos como `.mcstructure`;
+- importar `.mcstructure` simples sem entidades.
 
 Fora de escopo:
 - multiplayer;
 - contas, servidor ou base de dados;
 - inventário completo do Minecraft;
-- entidades, redstone, baús, comandos ou mobs;
-- editor 3D profissional.
+- entidades, redstone, baús, comandos, mobs ou NBT avançado;
+- editor 3D profissional;
+- importação perfeita de qualquer `.mcstructure` externo.
 
 ## Desenvolvimento
 

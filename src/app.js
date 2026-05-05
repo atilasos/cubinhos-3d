@@ -1,6 +1,6 @@
 import { BLOCKS, blockColor, blockName } from './blocks.js';
 import { createModel, setVoxel, getVoxel, fillLayer, serializeModel, deserializeModel, createHistory } from './model.js';
-import { downloadMcStructure } from './mcstructure.js';
+import { downloadMcStructure, importMcStructure } from './mcstructure.js';
 import { projectIsoCell, screenToIsoCell, rotationLabel } from './isometric.js';
 
 const STORAGE_KEY = 'voxelcraft.project.v1';
@@ -22,6 +22,7 @@ const el = {
   grid: document.querySelector('#grid'),
   layer: document.querySelector('#layer'),
   layerValue: document.querySelector('#layerValue'),
+  layerMax: document.querySelector('#layerMax'),
   preview: document.querySelector('#preview'),
   status: document.querySelector('#status'),
   modeLayer: document.querySelector('#modeLayer'),
@@ -51,7 +52,16 @@ function setStatus(message) {
 }
 
 function renderPalette() {
-  el.palette.replaceChildren(...BLOCKS.filter((block) => !block.empty).map((block) => {
+  const items = [];
+  let currentCategory = '';
+  for (const block of BLOCKS.filter((item) => !item.empty)) {
+    if (block.category !== currentCategory) {
+      currentCategory = block.category;
+      const heading = document.createElement('h3');
+      heading.className = 'palette-category';
+      heading.textContent = currentCategory;
+      items.push(heading);
+    }
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `swatch${block.id === selectedBlock ? ' active' : ''}`;
@@ -67,13 +77,23 @@ function renderPalette() {
       renderPalette();
       setStatus(`Bloco escolhido: ${block.name}.`);
     });
-    return button;
-  }));
+    items.push(button);
+  }
+  el.palette.replaceChildren(...items);
+}
+
+function syncLayerControl() {
+  const maxLayer = model.size.y - 1;
+  if (layer > maxLayer) layer = maxLayer;
+  el.layer.max = String(maxLayer);
+  el.layerValue.textContent = String(layer);
+  el.layerMax.textContent = String(maxLayer);
+  el.layer.value = String(layer);
 }
 
 function renderGrid() {
-  el.layerValue.textContent = String(layer);
-  el.layer.value = String(layer);
+  syncLayerControl();
+  el.grid.style.gridTemplateColumns = `repeat(${model.size.x}, minmax(10px, 1fr))`;
   const cells = [];
   for (let z = 0; z < model.size.z; z += 1) {
     for (let x = 0; x < model.size.x; x += 1) {
@@ -304,13 +324,13 @@ function drawFlatPreview(ctx) {
     let sx;
     let sy;
     if (view === 'front') {
-      sx = (cube.x - 16) * scale + el.preview.width / 2;
+      sx = (cube.x - model.size.x / 2) * scale + el.preview.width / 2;
       sy = 330 - cube.y * scale;
     } else if (view === 'side') {
-      sx = (cube.z - 16) * scale + el.preview.width / 2;
+      sx = (cube.z - model.size.z / 2) * scale + el.preview.width / 2;
       sy = 330 - cube.y * scale;
     } else {
-      sx = (cube.x - 16) * scale + el.preview.width / 2;
+      sx = (cube.x - model.size.x / 2) * scale + el.preview.width / 2;
       sy = 20 + cube.z * scale;
     }
     ctx.fillStyle = blockColor(cube.block);
@@ -320,25 +340,19 @@ function drawFlatPreview(ctx) {
   }
 }
 
-function downloadText(filename, text, type) {
-  const blob = new Blob([text], { type });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-function loadProjectText(text) {
-  model = deserializeModel(text);
+function loadModel(nextModel, message = 'Projeto aberto com sucesso.') {
+  model = nextModel;
   history = createHistory(model);
   layer = 0;
+  syncLayerControl();
   isoCursor = null;
   renderAll();
-  setStatus('Projeto aberto com sucesso.');
+  setStatus(message);
+}
+
+function warningSuffix(warnings) {
+  if (!warnings.length) return '';
+  return ` Aviso: ${warnings.slice(0, 2).join(' ')}`;
 }
 
 function renderEditedViews() {
@@ -416,25 +430,26 @@ el.saveLocal.addEventListener('click', () => {
 el.loadLocal.addEventListener('click', () => {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (!saved) return setStatus('Ainda não há projeto guardado neste browser.');
-  loadProjectText(saved);
+  loadModel(deserializeModel(saved), 'Projeto aberto do browser.');
 });
 el.downloadProject.addEventListener('click', () => {
-  downloadText('cubinhos-3d-project.json', serializeModel(model), 'application/json');
-  setStatus('Projeto descarregado em JSON.');
+  downloadMcStructure(model, 'cubinhos-3d.mcstructure');
+  setStatus('Projeto descarregado em .mcstructure. É o mesmo ficheiro para reabrir aqui e importar no Minecraft.');
 });
 el.openProject.addEventListener('change', async (event) => {
   const [file] = event.target.files;
   if (!file) return;
   try {
-    loadProjectText(await file.text());
-  } catch {
-    setStatus('Não consegui abrir esse projeto. Confirma se é um ficheiro do Cubinhos 3D.');
+    const result = importMcStructure(await file.arrayBuffer());
+    loadModel(result.model, `Estrutura .mcstructure aberta com sucesso.${warningSuffix(result.warnings)}`);
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : 'Não consegui abrir esse ficheiro .mcstructure.');
   }
   event.target.value = '';
 });
 el.exportStructure.addEventListener('click', () => {
   downloadMcStructure(model, 'cubinhos-3d.mcstructure');
-  setStatus('Ficheiro .mcstructure exportado. Importa-o com Structure Block num ambiente suportado.');
+  setStatus('Ficheiro .mcstructure pronto. Podes reabri-lo no Cubinhos 3D ou importá-lo com Structure Block.');
 });
 el.rotateLeft.addEventListener('click', () => {
   isoRotation = (isoRotation + 3) % 4;

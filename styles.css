@@ -58,7 +58,15 @@ h2 { margin: 0 0 .6rem; }
 }
 .panel-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: start; }
 .tools, .view-tools { display: flex; flex-wrap: wrap; gap: .5rem; }
-.palette { display: grid; gap: .45rem; }
+.palette { display: grid; gap: .45rem; max-height: 72vh; overflow: auto; padding-right: .25rem; }
+.palette-category {
+  margin: .65rem 0 .1rem;
+  font-size: .86rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.palette-category:first-child { margin-top: 0; }
 .swatch {
   display: flex;
   align-items: center;
