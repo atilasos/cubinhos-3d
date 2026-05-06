@@ -8,6 +8,8 @@ const AIR = 'minecraft:air';
 const ISO_CELL_WIDTH = 18;
 const ISO_CELL_HEIGHT = 10;
 const ISO_BLOCK_HEIGHT = 8;
+const RIGHT_MOUSE_BUTTON = 2;
+const ROTATE_DRAG_PIXELS = 70;
 let model = createModel();
 let history = createHistory(model);
 let selectedBlock = BLOCKS.find((block) => !block.empty)?.id ?? 'minecraft:stone';
@@ -19,6 +21,8 @@ let isoRotation = 0;
 let isoZoom = 1;
 let isoCursor = null;
 let dragging = false;
+let rotatingCanvas = false;
+let rotateDragStartX = 0;
 
 const el = {
   palette: document.querySelector('#palette'),
@@ -53,6 +57,30 @@ const el = {
 
 function setStatus(message) {
   el.status.textContent = message;
+}
+
+function normalizeQuarterTurn(rotation) {
+  return ((rotation % 4) + 4) % 4;
+}
+
+function rotateIsoView(direction) {
+  isoRotation = normalizeQuarterTurn(isoRotation + direction);
+  isoCursor = null;
+  renderAllViews();
+}
+
+function zoomStep() {
+  return Number(el.isoZoom.step) || 0.1;
+}
+
+function setIsoZoom(nextZoom) {
+  const min = Number(el.isoZoom.min) || 0.6;
+  const max = Number(el.isoZoom.max) || 1.8;
+  const step = zoomStep();
+  const stepped = Math.round((nextZoom - min) / step) * step + min;
+  isoZoom = Number(Math.max(min, Math.min(max, stepped)).toFixed(2));
+  el.isoZoom.value = String(isoZoom);
+  renderAllViews();
 }
 
 function renderPalette() {
@@ -559,23 +587,40 @@ el.exportStructure.addEventListener('click', () => {
   setStatus('Ficheiro .mcstructure pronto. Podes reabri-lo no Cubinhos 3D ou importá-lo com Structure Block.');
 });
 el.rotateLeft.addEventListener('click', () => {
-  isoRotation = (isoRotation + 3) % 4;
-  renderAllViews();
+  rotateIsoView(-1);
 });
 el.rotateRight.addEventListener('click', () => {
-  isoRotation = (isoRotation + 1) % 4;
-  renderAllViews();
+  rotateIsoView(1);
 });
 el.isoZoom.addEventListener('input', (event) => {
-  isoZoom = Number(event.target.value);
-  renderAllViews();
+  setIsoZoom(Number(event.target.value));
 });
 el.isoBuilder.addEventListener('pointerdown', (event) => {
+  if (event.button === RIGHT_MOUSE_BUTTON) {
+    event.preventDefault();
+    dragging = false;
+    rotatingCanvas = true;
+    rotateDragStartX = event.clientX;
+    el.isoBuilder.setPointerCapture(event.pointerId);
+    setStatus('Botão direito: arrasta para rodar a vista.');
+    return;
+  }
+  if (event.button !== 0) return;
   dragging = true;
   el.isoBuilder.setPointerCapture(event.pointerId);
   editIsoFromEvent(event, true);
 });
 el.isoBuilder.addEventListener('pointermove', (event) => {
+  if (rotatingCanvas) {
+    event.preventDefault();
+    const deltaX = event.clientX - rotateDragStartX;
+    const steps = Math.trunc(deltaX / ROTATE_DRAG_PIXELS);
+    if (steps !== 0) {
+      rotateDragStartX += steps * ROTATE_DRAG_PIXELS;
+      rotateIsoView(steps);
+    }
+    return;
+  }
   const point = canvasPoint(event, el.isoBuilder);
   const cell = buildMode === '3d'
     ? targetFrom3dPoint(point)
@@ -587,12 +632,34 @@ el.isoBuilder.addEventListener('pointermove', (event) => {
     renderLayerMap();
   }
 });
-el.isoBuilder.addEventListener('pointerup', () => { dragging = false; });
+el.isoBuilder.addEventListener('pointerup', () => {
+  dragging = false;
+  if (rotatingCanvas) {
+    rotatingCanvas = false;
+    setStatus(`Vista ${rotationLabel(isoRotation)}.`);
+  }
+});
+el.isoBuilder.addEventListener('pointercancel', () => {
+  dragging = false;
+  rotatingCanvas = false;
+});
+el.isoBuilder.addEventListener('contextmenu', (event) => {
+  event.preventDefault();
+});
+el.isoBuilder.addEventListener('wheel', (event) => {
+  event.preventDefault();
+  const direction = event.deltaY > 0 ? -1 : 1;
+  setIsoZoom(isoZoom + direction * zoomStep());
+  setStatus(`Zoom ${isoZoom.toFixed(1)}×.`);
+}, { passive: false });
 for (const button of document.querySelectorAll('[data-view]')) {
   button.addEventListener('click', () => {
     view = button.dataset.view;
     renderPreview();
   });
 }
-window.addEventListener('pointerup', () => { dragging = false; });
+window.addEventListener('pointerup', () => {
+  dragging = false;
+  rotatingCanvas = false;
+});
 renderAll();

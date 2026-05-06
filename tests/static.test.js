@@ -57,3 +57,20 @@ test('static app shell documents simple 3D face editing', async () => {
   assert.match(html, /face/);
   assert.match(html, /cubinho fantasma/);
 });
+
+test('canvas construction shell documents mouse rotate and wheel zoom', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /botão direito/i);
+  assert.match(html, /roda do rato/i);
+  assert.match(html, /canvas/i);
+});
+
+test('app wires right-button rotation and wheel zoom on the construction canvas', async () => {
+  const source = await readFile(new URL('../src/app.js', import.meta.url), 'utf8');
+  assert.match(source, /RIGHT_MOUSE_BUTTON/);
+  assert.match(source, /contextmenu/);
+  assert.match(source, /event\.preventDefault\(\)/);
+  assert.match(source, /addEventListener\('wheel'/);
+  assert.match(source, /passive: false/);
+  assert.match(source, /setIsoZoom/);
+});

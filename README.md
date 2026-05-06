@@ -8,7 +8,7 @@ Cubinhos 3D é uma aplicação estática para alunos do 1.º ciclo planearem con
 2. Escolhe um bloco na paleta organizada por famílias de cores e materiais.
 3. Constrói por camadas, usa o **modo isométrico assistido**, ou muda para o novo **modo 3D**.
 4. No modo 3D, aponta para uma face, confirma o cubinho fantasma e clica para colocar ou apagar como no Minecraft Education.
-5. Usa rotação e zoom para ver à volta; o mapa de camadas ajuda a não perder a altura atual.
+5. Usa rotação e zoom para ver à volta; no canvas podes segurar o botão direito e arrastar para rodar, e usar a roda do rato para aproximar/afastar.
 6. Clica em **Descarregar .mcstructure** para guardar o projeto num ficheiro.
 7. Mais tarde, usa **Abrir .mcstructure** para continuar a editar o mesmo projeto.
 8. O mesmo ficheiro também pode ser usado em **Usar no Minecraft** / Structure Block.
@@ -45,6 +45,7 @@ Incluído:
 - colocar, apagar, preencher camada, desfazer/refazer;
 - modo isométrico assistido por camada com rotação, zoom e mapa de orientação;
 - modo 3D simples com edição por faces visíveis, bloco fantasma, rotação e zoom;
+- rotação com botão direito do rato e zoom com roda dentro do canvas de construção;
 - guardar/abrir localmente no browser;
 - descarregar e abrir projetos como `.mcstructure`;
 - importar `.mcstructure` simples sem entidades.
