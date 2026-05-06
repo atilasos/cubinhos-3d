@@ -1,10 +1,13 @@
 import { BLOCKS, blockColor, blockName } from './blocks.js';
 import { createModel, setVoxel, getVoxel, fillLayer, serializeModel, deserializeModel, createHistory } from './model.js';
 import { downloadMcStructure, importMcStructure } from './mcstructure.js';
-import { projectIsoCell, screenToIsoCell, rotationLabel } from './isometric.js';
+import { findIsoFaceTarget, projectIsoCell, screenToIsoCell, rotationLabel } from './isometric.js';
 
 const STORAGE_KEY = 'voxelcraft.project.v1';
 const AIR = 'minecraft:air';
+const ISO_CELL_WIDTH = 18;
+const ISO_CELL_HEIGHT = 10;
+const ISO_BLOCK_HEIGHT = 8;
 let model = createModel();
 let history = createHistory(model);
 let selectedBlock = BLOCKS.find((block) => !block.empty)?.id ?? 'minecraft:stone';
@@ -27,6 +30,7 @@ const el = {
   status: document.querySelector('#status'),
   modeLayer: document.querySelector('#modeLayer'),
   modeIso: document.querySelector('#modeIso'),
+  mode3d: document.querySelector('#mode3d'),
   layerWorkspace: document.querySelector('#layerWorkspace'),
   isoWorkspace: document.querySelector('#isoWorkspace'),
   isoBuilder: document.querySelector('#isoBuilder'),
@@ -137,14 +141,20 @@ function setTool(nextTool) {
 
 function setBuildMode(nextMode) {
   buildMode = nextMode;
+  isoCursor = null;
   el.modeLayer.classList.toggle('active', buildMode === 'layer');
   el.modeIso.classList.toggle('active', buildMode === 'iso');
+  el.mode3d.classList.toggle('active', buildMode === '3d');
   el.layerWorkspace.classList.toggle('hidden', buildMode !== 'layer');
-  el.isoWorkspace.classList.toggle('hidden', buildMode !== 'iso');
+  el.isoWorkspace.classList.toggle('hidden', !['iso', '3d'].includes(buildMode));
   renderAllViews();
-  setStatus(buildMode === 'iso'
-    ? 'Modo isométrico: constrói na camada atual com rotação e zoom.'
-    : 'Modo camadas: constrói na grelha 2D da camada atual.');
+  if (buildMode === '3d') {
+    setStatus('Modo 3D: aponta para uma face, vê o bloco fantasma e clica para construir.');
+  } else {
+    setStatus(buildMode === 'iso'
+      ? 'Modo isométrico: constrói na camada atual com rotação e zoom.'
+      : 'Modo camadas: constrói na grelha 2D da camada atual.');
+  }
 }
 
 function projectionOptions(canvas) {
@@ -154,9 +164,23 @@ function projectionOptions(canvas) {
     zoom: isoZoom,
     originX: canvas.width / 2,
     originY: 48,
-    cellWidth: 18,
-    cellHeight: 10,
+    cellWidth: ISO_CELL_WIDTH,
+    cellHeight: ISO_CELL_HEIGHT,
+    blockHeight: ISO_BLOCK_HEIGHT,
   };
+}
+
+function occupiedCubes() {
+  const cubes = [];
+  for (let x = 0; x < model.size.x; x += 1) {
+    for (let y = 0; y < model.size.y; y += 1) {
+      for (let z = 0; z < model.size.z; z += 1) {
+        const block = getVoxel(model, x, y, z);
+        if (block !== AIR) cubes.push({ x, y, z, block });
+      }
+    }
+  }
+  return cubes;
 }
 
 function renderIsoBuilder() {
@@ -168,9 +192,13 @@ function renderIsoBuilder() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawIsoLayerGrid(ctx, canvas);
   drawIsoBlocks(ctx, canvas, { focusLayer: true });
+  if (buildMode === '3d') drawIsoGhost(ctx, canvas);
   ctx.fillStyle = '#334155';
   ctx.font = '16px system-ui';
-  ctx.fillText(`Modo isométrico • camada ${layer} • vista ${rotationLabel(isoRotation)} • zoom ${isoZoom.toFixed(1)}×`, 18, canvas.height - 18);
+  const label = buildMode === '3d'
+    ? 'Modo 3D • clica numa face para construir'
+    : `Modo isométrico • camada ${layer}`;
+  ctx.fillText(`${label} • vista ${rotationLabel(isoRotation)} • zoom ${isoZoom.toFixed(1)}×`, 18, canvas.height - 18);
 }
 
 function drawIsoLayerGrid(ctx, canvas) {
@@ -178,32 +206,51 @@ function drawIsoLayerGrid(ctx, canvas) {
   for (let x = 0; x < model.size.x; x += 1) {
     for (let z = 0; z < model.size.z; z += 1) {
       const point = projectIsoCell(x, z, options);
-      drawDiamond(ctx, point.cx, point.cy + layer * -1.5 * isoZoom, 9 * isoZoom, 5 * isoZoom, '#ffffff', 'rgba(37,99,235,.14)');
+      drawDiamond(
+        ctx,
+        point.cx,
+        point.cy + layer * -1.5 * isoZoom,
+        (ISO_CELL_WIDTH / 2) * isoZoom,
+        (ISO_CELL_HEIGHT / 2) * isoZoom,
+        '#ffffff',
+        'rgba(37,99,235,.14)',
+      );
     }
   }
   if (isoCursor) {
     const point = projectIsoCell(isoCursor.x, isoCursor.z, options);
-    drawDiamond(ctx, point.cx, point.cy + layer * -1.5 * isoZoom, 10 * isoZoom, 6 * isoZoom, 'rgba(251,191,36,.42)', '#f59e0b');
+    drawDiamond(
+      ctx,
+      point.cx,
+      point.cy + layer * -1.5 * isoZoom,
+      (ISO_CELL_WIDTH / 2 + 1) * isoZoom,
+      (ISO_CELL_HEIGHT / 2 + 1) * isoZoom,
+      'rgba(251,191,36,.42)',
+      '#f59e0b',
+    );
   }
 }
 
 function drawIsoBlocks(ctx, canvas, { focusLayer = false } = {}) {
   const options = projectionOptions(canvas);
-  const cubes = [];
-  for (let x = 0; x < model.size.x; x += 1) {
-    for (let y = 0; y < model.size.y; y += 1) {
-      for (let z = 0; z < model.size.z; z += 1) {
-        const block = getVoxel(model, x, y, z);
-        if (block !== AIR) cubes.push({ x, y, z, block });
-      }
-    }
-  }
+  const cubes = occupiedCubes();
   cubes.sort((a, b) => (a.x + a.y + a.z) - (b.x + b.y + b.z));
   for (const cube of cubes) {
     const point = projectIsoCell(cube.x, cube.z, options);
-    const alpha = focusLayer && cube.y !== layer ? 0.28 : 1;
-    drawIsoBlock(ctx, point.cx, point.cy - cube.y * 7 * isoZoom, cube.block, alpha);
+    const alpha = focusLayer && buildMode !== '3d' && cube.y !== layer ? 0.28 : 1;
+    drawIsoBlock(ctx, point.cx, point.cy - cube.y * ISO_BLOCK_HEIGHT * isoZoom, cube.block, alpha);
   }
+}
+
+function drawIsoGhost(ctx, canvas) {
+  if (!isoCursor) return;
+  const point = projectIsoCell(isoCursor.x, isoCursor.z, projectionOptions(canvas));
+  const y = point.cy - isoCursor.y * ISO_BLOCK_HEIGHT * isoZoom;
+  if (tool === 'erase') {
+    drawIsoBlock(ctx, point.cx, y, '#ef4444', 0.32);
+    return;
+  }
+  drawIsoBlock(ctx, point.cx, y, selectedBlock, 0.42);
 }
 
 function drawDiamond(ctx, cx, cy, halfW, halfH, fill, stroke) {
@@ -220,13 +267,14 @@ function drawDiamond(ctx, cx, cy, halfW, halfH, fill, stroke) {
 }
 
 function drawIsoBlock(ctx, cx, cy, block, alpha = 1) {
-  const w = 9 * isoZoom;
-  const h = 5 * isoZoom;
-  const height = 8 * isoZoom;
+  const w = (ISO_CELL_WIDTH / 2) * isoZoom;
+  const h = (ISO_CELL_HEIGHT / 2) * isoZoom;
+  const height = ISO_BLOCK_HEIGHT * isoZoom;
+  const color = block.startsWith?.('#') ? block : blockColor(block);
   ctx.save();
   ctx.globalAlpha = alpha;
-  drawDiamond(ctx, cx, cy, w, h, blockColor(block), 'rgba(15,23,42,.35)');
-  ctx.fillStyle = shade(blockColor(block), -18);
+  drawDiamond(ctx, cx, cy, w, h, color, 'rgba(15,23,42,.35)');
+  ctx.fillStyle = shade(color, -18);
   ctx.beginPath();
   ctx.moveTo(cx - w, cy);
   ctx.lineTo(cx, cy + h);
@@ -235,7 +283,7 @@ function drawIsoBlock(ctx, cx, cy, block, alpha = 1) {
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = shade(blockColor(block), -32);
+  ctx.fillStyle = shade(color, -32);
   ctx.beginPath();
   ctx.moveTo(cx + w, cy);
   ctx.lineTo(cx, cy + h);
@@ -287,6 +335,11 @@ function renderLayerMap() {
     ctx.lineWidth = 3;
     ctx.strokeRect(isoCursor.x * cell, isoCursor.z * cell, cell, cell);
     ctx.lineWidth = 1;
+    if (Number.isInteger(isoCursor.y)) {
+      ctx.fillStyle = '#0f172a';
+      ctx.font = '12px system-ui';
+      ctx.fillText(`alvo y=${isoCursor.y}`, 8, 18);
+    }
   }
   ctx.fillStyle = '#0f172a';
   ctx.font = '14px system-ui';
@@ -383,6 +436,10 @@ function canvasPoint(event, canvas) {
 }
 
 function editIsoFromEvent(event, commit) {
+  if (buildMode === '3d') {
+    edit3dFromEvent(event, commit);
+    return;
+  }
   const point = canvasPoint(event, el.isoBuilder);
   const cell = screenToIsoCell(point.x, point.y + layer * 1.5 * isoZoom, projectionOptions(el.isoBuilder));
   if (!cell) {
@@ -395,12 +452,62 @@ function editIsoFromEvent(event, commit) {
   editCell(cell.x, cell.z, commit);
 }
 
+function targetFrom3dPoint(point) {
+  const options = projectionOptions(el.isoBuilder);
+  const cubes = occupiedCubes();
+  const picked = findIsoFaceTarget(point.x, point.y, cubes, {
+    ...options,
+    size: model.size,
+  });
+  if (picked) {
+    if (tool === 'erase') return { x: picked.cube.x, y: picked.cube.y, z: picked.cube.z, removable: true };
+    if (!picked.placeable) return null;
+    return getVoxel(model, picked.target.x, picked.target.y, picked.target.z) === AIR
+      ? { ...picked.target, removable: false }
+      : null;
+  }
+  if (tool === 'erase') return null;
+  const ground = screenToIsoCell(point.x, point.y, options);
+  if (!ground) return null;
+  return getVoxel(model, ground.x, 0, ground.z) === AIR
+    ? { x: ground.x, y: 0, z: ground.z, removable: false }
+    : null;
+}
+
+function edit3dFromEvent(event, commit) {
+  const point = canvasPoint(event, el.isoBuilder);
+  const target = targetFrom3dPoint(point);
+  isoCursor = target;
+  if (!target) {
+    renderIsoBuilder();
+    renderLayerMap();
+    return;
+  }
+  const block = target.removable || tool === 'erase' ? AIR : selectedBlock;
+  if (tool === 'paint' && getVoxel(model, target.x, target.y, target.z) !== AIR) {
+    renderIsoBuilder();
+    renderLayerMap();
+    return;
+  }
+  if (getVoxel(model, target.x, target.y, target.z) === block) {
+    renderIsoBuilder();
+    renderLayerMap();
+    return;
+  }
+  setVoxel(model, target.x, target.y, target.z, block);
+  layer = target.y;
+  syncLayerControl();
+  if (commit) history.commit(model);
+  renderEditedViews();
+}
+
 el.layer.addEventListener('input', (event) => {
   layer = Number(event.target.value);
   renderAllViews();
 });
 el.modeLayer.addEventListener('click', () => setBuildMode('layer'));
 el.modeIso.addEventListener('click', () => setBuildMode('iso'));
+el.mode3d.addEventListener('click', () => setBuildMode('3d'));
 el.toolPaint.addEventListener('click', () => setTool('paint'));
 el.toolErase.addEventListener('click', () => setTool('erase'));
 el.fillLayer.addEventListener('click', () => {
@@ -470,7 +577,9 @@ el.isoBuilder.addEventListener('pointerdown', (event) => {
 });
 el.isoBuilder.addEventListener('pointermove', (event) => {
   const point = canvasPoint(event, el.isoBuilder);
-  const cell = screenToIsoCell(point.x, point.y + layer * 1.5 * isoZoom, projectionOptions(el.isoBuilder));
+  const cell = buildMode === '3d'
+    ? targetFrom3dPoint(point)
+    : screenToIsoCell(point.x, point.y + layer * 1.5 * isoZoom, projectionOptions(el.isoBuilder));
   isoCursor = cell;
   if (dragging && cell) editIsoFromEvent(event, false);
   else {

@@ -23,6 +23,7 @@ test('isometric build mode shell exposes mode toggle, canvas, map, rotation and 
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /id="modeLayer"/);
   assert.match(html, /id="modeIso"/);
+  assert.match(html, /id="mode3d"/);
   assert.match(html, /id="isoBuilder"/);
   assert.match(html, /id="layerMap"/);
   assert.match(html, /id="isoZoom"/);
@@ -48,4 +49,11 @@ test('static app shell documents organized Minecraft material families', async (
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /famílias de cores/);
   assert.match(html, /materiais reais do Minecraft/);
+});
+
+test('static app shell documents simple 3D face editing', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /Modo 3D/);
+  assert.match(html, /face/);
+  assert.match(html, /cubinho fantasma/);
 });
