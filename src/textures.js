@@ -8,6 +8,7 @@ export function buildTextureCanvasData(hexColor) {
   const [r, g, b] = parseHex(hexColor);
   const out = new Uint8ClampedArray(SIZE * SIZE * 4);
   let seed = (r * 73856093) ^ (g * 19349663) ^ (b * 83492791);
+  if (seed === 0) seed = 1;
   for (let y = 0; y < SIZE; y += 1) {
     for (let x = 0; x < SIZE; x += 1) {
       const n = (rng(seed++) - 0.5) * 0.18; // ±9% lightness noise
@@ -52,7 +53,7 @@ function rng(seed) {
   x ^= x << 13;
   x ^= x >>> 17;
   x ^= x << 5;
-  return ((x >>> 0) / 0xffffffff);
+  return ((x >>> 0) / 0x100000000);
 }
 
 function clamp255(v) {
