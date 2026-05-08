@@ -16,10 +16,12 @@ export function castRay(model, ray) {
   const len = Math.hypot(dx, dy, dz) || 1;
   dx /= len; dy /= len; dz /= len;
 
-  const tEntry = enterBox(ox, oy, oz, dx, dy, dz, sx, sy, sz);
-  if (tEntry === null) return null;
+  const entry = enterBox(ox, oy, oz, dx, dy, dz, sx, sy, sz);
+  if (entry === null) return null;
+  const tEntry = entry.t;
   ox += dx * tEntry; oy += dy * tEntry; oz += dz * tEntry;
-  let distance = tEntry;
+  let lastNormal = entry.normal;
+  let t = 0;
 
   let x = Math.floor(ox), y = Math.floor(oy), z = Math.floor(oz);
   const stepX = dx > 0 ? 1 : -1;
@@ -32,8 +34,6 @@ export function castRay(model, ray) {
   let tMaxY = dy !== 0 ? ((dy > 0 ? Math.floor(oy) + 1 - oy : oy - Math.floor(oy)) * tDeltaY) : Infinity;
   let tMaxZ = dz !== 0 ? ((dz > 0 ? Math.floor(oz) + 1 - oz : oz - Math.floor(oz)) * tDeltaZ) : Infinity;
 
-  let lastNormal = [0, 0, 0];
-
   for (let step = 0; step < MAX_STEPS; step += 1) {
     if (x < 0 || y < 0 || z < 0 || x >= sx || y >= sy || z >= sz) {
       return null;
@@ -45,7 +45,7 @@ export function castRay(model, ray) {
         voxel: [x, y, z],
         normal: lastNormal,
         ghostVoxel: [x + lastNormal[0], y + lastNormal[1], z + lastNormal[2]],
-        distance,
+        distance: tEntry + t,
       };
     }
     if (dy < 0 && y === 0 && stepY === -1) {
@@ -55,34 +55,45 @@ export function castRay(model, ray) {
         const fz = oz + dz * tToFloor;
         const gx = Math.max(0, Math.min(sx - 1, Math.floor(fx)));
         const gz = Math.max(0, Math.min(sz - 1, Math.floor(fz)));
-        return { kind: 'floor', ghostVoxel: [gx, 0, gz], distance: distance + tToFloor };
+        return { kind: 'floor', ghostVoxel: [gx, 0, gz], distance: tEntry + tToFloor };
       }
     }
     if (tMaxX < tMaxY && tMaxX < tMaxZ) {
-      x += stepX; distance += tMaxX; tMaxX += tDeltaX; lastNormal = [-stepX, 0, 0];
+      t = tMaxX; x += stepX; tMaxX += tDeltaX; lastNormal = [-stepX, 0, 0];
     } else if (tMaxY < tMaxZ) {
-      y += stepY; distance += tMaxY; tMaxY += tDeltaY; lastNormal = [0, -stepY, 0];
+      t = tMaxY; y += stepY; tMaxY += tDeltaY; lastNormal = [0, -stepY, 0];
     } else {
-      z += stepZ; distance += tMaxZ; tMaxZ += tDeltaZ; lastNormal = [0, 0, -stepZ];
+      t = tMaxZ; z += stepZ; tMaxZ += tDeltaZ; lastNormal = [0, 0, -stepZ];
     }
   }
   return null;
 }
 
 function enterBox(ox, oy, oz, dx, dy, dz, sx, sy, sz) {
-  if (ox >= 0 && ox <= sx && oy >= 0 && oy <= sy && oz >= 0 && oz <= sz) return 0;
+  if (ox >= 0 && ox <= sx && oy >= 0 && oy <= sy && oz >= 0 && oz <= sz) {
+    return { t: 0, normal: [0, 0, 0] };
+  }
   let tMin = 0, tMax = Infinity;
-  for (const [o, d, s] of [[ox, dx, sx], [oy, dy, sy], [oz, dz, sz]]) {
+  let entryAxis = -1;
+  const axes = [[ox, dx, sx], [oy, dy, sy], [oz, dz, sz]];
+  for (let i = 0; i < 3; i += 1) {
+    const [o, d, s] = axes[i];
     if (Math.abs(d) < 1e-9) {
       if (o < 0 || o > s) return null;
     } else {
       let t1 = (0 - o) / d;
       let t2 = (s - o) / d;
       if (t1 > t2) [t1, t2] = [t2, t1];
-      tMin = Math.max(tMin, t1);
+      if (t1 > tMin) { tMin = t1; entryAxis = i; }
       tMax = Math.min(tMax, t2);
       if (tMin > tMax) return null;
     }
   }
-  return tMin;
+  const normal = [0, 0, 0];
+  if (entryAxis >= 0) {
+    // Entry face's outward normal = opposite of direction along the entry axis.
+    const dOnAxis = axes[entryAxis][1];
+    normal[entryAxis] = dOnAxis > 0 ? -1 : 1;
+  }
+  return { t: tMin, normal };
 }

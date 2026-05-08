@@ -35,3 +35,29 @@ test('castRay hits side face from horizontal ray', () => {
   assert.deepEqual(hit.normal, [-1, 0, 0]);
   assert.deepEqual(hit.ghostVoxel, [9, 5, 10]);
 });
+
+test('castRay reports correct distance to voxel', () => {
+  const model = createModel();
+  setVoxel(model, 10, 0, 0, 'minecraft:stone');
+  const hit = castRay(model, { origin: [0.5, 0.5, 0.5], dir: [1, 0, 0] });
+  // ray enters voxel at x=10 from -X face after 9.5 units (10 - 0.5)
+  assert.ok(Math.abs(hit.distance - 9.5) < 0.01, `expected ~9.5, got ${hit.distance}`);
+});
+
+test('castRay reports correct distance to floor', () => {
+  const model = createModel();
+  const hit = castRay(model, { origin: [16, 20, 16], dir: [0, -1, 0] });
+  // floor at y=0, origin at y=20 → distance 20
+  assert.equal(hit.kind, 'floor');
+  assert.ok(Math.abs(hit.distance - 20) < 0.01, `expected ~20, got ${hit.distance}`);
+});
+
+test('castRay sets normal correctly when origin is outside and first cell is solid', () => {
+  const model = createModel();
+  setVoxel(model, 0, 15, 15, 'minecraft:stone');
+  const hit = castRay(model, { origin: [-5, 15.5, 15.5], dir: [1, 0, 0] });
+  assert.equal(hit.kind, 'voxel');
+  assert.deepEqual(hit.voxel, [0, 15, 15]);
+  assert.deepEqual(hit.normal, [-1, 0, 0]);
+  assert.deepEqual(hit.ghostVoxel, [-1, 15, 15]);
+});
