@@ -90,3 +90,56 @@ export function createControls(camera, canvas) {
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+const VIEWS = {
+  'front':  { yaw: 0,           pitch: 0.001 },
+  'back':   { yaw: Math.PI,     pitch: 0.001 },
+  'right':  { yaw: -Math.PI/2,  pitch: 0.001 },
+  'left':   { yaw: Math.PI/2,   pitch: 0.001 },
+  'top':    { yaw: -Math.PI/4,  pitch: PITCH_MAX },
+  'iso':    { yaw: -Math.PI/4,  pitch: Math.PI / 5 },
+};
+
+export function attachViewCube(controls, container) {
+  const wrap = document.createElement('div');
+  wrap.className = 'viewcube';
+  wrap.innerHTML = `
+    <button data-view="top" aria-label="Vista de cima">CIMA</button>
+    <div class="viewcube-row">
+      <button data-view="left" aria-label="Vista da esquerda">ESQ</button>
+      <button data-view="front" aria-label="Vista da frente">FRENTE</button>
+      <button data-view="right" aria-label="Vista da direita">DIR</button>
+    </div>
+    <button data-view="back" aria-label="Vista de trás">ATRÁS</button>
+    <div class="viewcube-arrows">
+      <button data-rotate="-1" aria-label="Rodar 45° à esquerda">⟲</button>
+      <button data-rotate="1" aria-label="Rodar 45° à direita">⟳</button>
+    </div>
+    <button class="home" data-home aria-label="Vista inicial">🏠</button>
+  `;
+  container.appendChild(wrap);
+
+  wrap.addEventListener('click', (e) => {
+    const t = e.target.closest('button');
+    if (!t) return;
+    if (t.dataset.view) {
+      const v = VIEWS[t.dataset.view];
+      controls.setView(v.yaw, v.pitch);
+    } else if (t.dataset.rotate) {
+      controls.rotateBy(Number(t.dataset.rotate) * Math.PI / 4);
+    } else if (t.dataset.home !== undefined) {
+      controls.home();
+    }
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && !isTypingTarget(e.target)) {
+      e.preventDefault();
+      controls.home();
+    }
+  });
+}
+
+function isTypingTarget(el) {
+  return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+}
