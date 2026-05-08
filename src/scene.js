@@ -28,7 +28,7 @@ export function createScene(canvas) {
   function loop() { render(); requestAnimationFrame(loop); }
   loop();
 
-  return { scene, camera, renderer, render, setHomeView: () => setHomeView(camera) };
+  return { scene, camera, renderer, render };
 }
 
 function setHomeView(camera) {
