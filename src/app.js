@@ -29,6 +29,8 @@ const tools = createTools(model, (changes) => {
 let activeBlockId = 'minecraft:grass_block';
 tools.setBlock(activeBlockId);
 
+const swatchCache = new Map();
+
 renderPalette();
 meshes.rebuild(model);
 
@@ -157,7 +159,6 @@ function makeSwatch(blockId) {
   return btn;
 }
 
-const swatchCache = new Map();
 function swatchDataUrl(hex) {
   if (swatchCache.has(hex)) return swatchCache.get(hex);
   const data = buildTextureCanvasData(hex); // Uint8ClampedArray length 1024
