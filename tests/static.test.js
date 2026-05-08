@@ -2,75 +2,139 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('static app shell exposes classroom controls and module entrypoint', async () => {
+// ── index.html ────────────────────────────────────────────────────────────────
+
+test('title contains "Construtor Voxel"', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /Construtor Voxel/);
-  assert.match(html, /id="palette"/);
-  assert.match(html, /id="layer"/);
-  assert.match(html, /id="layerMax"/);
-  assert.match(html, /src="\.\/src\/app\.js"/);
 });
 
-test('README documents Minecraft Education import caveat', async () => {
-  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
-  assert.match(readme, /Structure Block/);
-  assert.match(readme, /Windows/i);
-  assert.match(readme, /\.mcstructure/);
-});
-
-
-test('isometric build mode shell exposes mode toggle, canvas, map, rotation and zoom controls', async () => {
+test('Three.js importmap is pinned at 0.164.0', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /id="modeLayer"/);
-  assert.match(html, /id="modeIso"/);
-  assert.match(html, /id="mode3d"/);
-  assert.match(html, /id="isoBuilder"/);
-  assert.match(html, /id="layerMap"/);
-  assert.match(html, /id="isoZoom"/);
-  assert.match(html, /id="rotateLeft"/);
-  assert.match(html, /id="rotateRight"/);
+  assert.match(html, /three@0\.164\.0/);
 });
 
-test('README documents the assisted isometric mode', async () => {
-  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
-  assert.match(readme, /modo isométrico assistido/i);
-});
-
-
-test('project file controls use only mcstructure in the visible workflow', async () => {
+test('Fredoka Google Font link is present', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /Descarregar \.mcstructure/);
-  assert.match(html, /Abrir \.mcstructure/);
+  assert.match(html, /Fredoka/);
+});
+
+test('canvas with id "canvas3d" is present', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /id="canvas3d"/);
+});
+
+test('top bar shows brand "Cubinhos 3D"', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /Cubinhos 3D/);
+});
+
+test('left rail has data-tool buttons for build, erase, paint, fill', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /data-tool="build"/);
+  assert.match(html, /data-tool="erase"/);
+  assert.match(html, /data-tool="paint"/);
+  assert.match(html, /data-tool="fill"/);
+});
+
+test('undo and redo buttons are present', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /id="undoBtn"/);
+  assert.match(html, /id="redoBtn"/);
+});
+
+test('file control buttons are present', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /id="loadLocal"/);
+  assert.match(html, /id="saveLocal"/);
+  assert.match(html, /id="openProject"/);
+  assert.match(html, /id="downloadProject"/);
+  assert.match(html, /id="exportStructure"/);
+});
+
+test('palette drawer ids are present', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /id="paletteDrawer"/);
+  assert.match(html, /id="paletteToggle"/);
+  assert.match(html, /id="paletteStrip"/);
+  assert.match(html, /id="paletteMore"/);
+  assert.match(html, /id="paletteFull"/);
+});
+
+test('viewcubeHost element is present', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /id="viewcubeHost"/);
+});
+
+test('file input accepts .mcstructure', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /accept="\.mcstructure,application\/octet-stream"/);
+});
+
+test('HTML does not reference any JSON project format', async () => {
+  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   assert.doesNotMatch(html, /application\/json|\.json|JSON/);
 });
 
-test('static app shell documents organized Minecraft material families', async () => {
+test('module script entry point src/app.js is present', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /famílias de cores/);
-  assert.match(html, /materiais reais do Minecraft/);
+  assert.match(html, /<script type="module" src="\.\/src\/app\.js">/);
 });
 
-test('static app shell documents simple 3D face editing', async () => {
-  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /Modo 3D/);
-  assert.match(html, /face/);
-  assert.match(html, /cubinho fantasma/);
+// ── src/app.js ────────────────────────────────────────────────────────────────
+
+test('app.js imports from "three" (importmap key)', async () => {
+  const src = await readFile(new URL('../src/app.js', import.meta.url), 'utf8');
+  assert.match(src, /from 'three'/);
 });
 
-test('canvas construction shell documents mouse rotate and wheel zoom', async () => {
-  const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /botão direito/i);
-  assert.match(html, /roda do rato/i);
-  assert.match(html, /canvas/i);
+test('app.js calls createScene, createVoxelMeshes, createControls, attachViewCube, createGhost, createTools, castRay', async () => {
+  const src = await readFile(new URL('../src/app.js', import.meta.url), 'utf8');
+  assert.match(src, /createScene/);
+  assert.match(src, /createVoxelMeshes/);
+  assert.match(src, /createControls/);
+  assert.match(src, /attachViewCube/);
+  assert.match(src, /createGhost/);
+  assert.match(src, /createTools/);
+  assert.match(src, /castRay/);
 });
 
-test('app wires right-button rotation and wheel zoom on the construction canvas', async () => {
-  const source = await readFile(new URL('../src/app.js', import.meta.url), 'utf8');
-  assert.match(source, /RIGHT_MOUSE_BUTTON/);
-  assert.match(source, /contextmenu/);
-  assert.match(source, /event\.preventDefault\(\)/);
-  assert.match(source, /addEventListener\('wheel'/);
-  assert.match(source, /passive: false/);
-  assert.match(source, /setIsoZoom/);
+test('app.js wires pointermove, pointerdown, pointerup on the canvas', async () => {
+  const src = await readFile(new URL('../src/app.js', import.meta.url), 'utf8');
+  assert.match(src, /addEventListener\('pointermove'/);
+  assert.match(src, /addEventListener\('pointerdown'/);
+  assert.match(src, /addEventListener\('pointerup'/);
+});
+
+test('app.js imports exportMcStructure, importMcStructure, downloadMcStructure from mcstructure', async () => {
+  const src = await readFile(new URL('../src/app.js', import.meta.url), 'utf8');
+  assert.match(src, /exportMcStructure/);
+  assert.match(src, /importMcStructure/);
+  assert.match(src, /downloadMcStructure/);
+  assert.match(src, /mcstructure/);
+});
+
+test('app.js has keyboard shortcuts for tools 1, 2, 3, 4', async () => {
+  const src = await readFile(new URL('../src/app.js', import.meta.url), 'utf8');
+  assert.match(src, /'1'/);
+  assert.match(src, /'2'/);
+  assert.match(src, /'3'/);
+  assert.match(src, /'4'/);
+});
+
+// ── README.md ────────────────────────────────────────────────────────────────
+
+test('README mentions Structure Block', async () => {
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
+  assert.match(readme, /Structure Block/);
+});
+
+test('README mentions Windows (case-insensitive)', async () => {
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
+  assert.match(readme, /Windows/i);
+});
+
+test('README mentions .mcstructure', async () => {
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
+  assert.match(readme, /\.mcstructure/);
 });
