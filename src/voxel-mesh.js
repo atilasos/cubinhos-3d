@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { buildThreeTexture } from './textures.js';
-import { BLOCK_BY_ID, paletteBlocks } from './blocks.js';
+import { paletteBlocks } from './blocks.js';
 
 const AIR = 'minecraft:air';
 const MAX_PER_TYPE = 32 * 32 * 32;
@@ -17,7 +17,7 @@ export function createVoxelMeshes(scene) {
     const mesh = new THREE.InstancedMesh(cubeGeo, mat, MAX_PER_TYPE);
     mesh.count = 0;
     mesh.userData.blockId = block.id;
-    mesh.frustumCulled = false;
+    mesh.frustumCulled = false; // bounding box not auto-recomputed for InstancedMesh
     scene.add(mesh);
     meshesById.set(block.id, { mesh, slots: new Map(), free: [] });
   }
