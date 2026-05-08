@@ -5,24 +5,12 @@ Cubinhos 3D é uma aplicação estática para alunos do 1.º ciclo planearem con
 ## Como usar
 
 1. Abre `index.html` ou publica este repositório no GitHub Pages.
-2. Escolhe um bloco na paleta organizada por famílias de cores e materiais.
-3. Constrói por camadas, usa o **modo isométrico assistido**, ou muda para o novo **modo 3D**.
-4. No modo 3D, aponta para uma face, confirma o cubinho fantasma e clica para colocar ou apagar como no Minecraft Education.
-5. Usa rotação e zoom para ver à volta; no canvas podes segurar o botão direito e arrastar para rodar, e usar a roda do rato para aproximar/afastar.
-6. Clica em **Descarregar .mcstructure** para guardar o projeto num ficheiro.
-7. Mais tarde, usa **Abrir .mcstructure** para continuar a editar o mesmo projeto.
-8. O mesmo ficheiro também pode ser usado em **Usar no Minecraft** / Structure Block.
-
-## Ficheiro único `.mcstructure`
-
-A interface deixou de usar ficheiros JSON para projetos. O formato visível para professores e crianças é apenas `.mcstructure`.
-
-O Cubinhos 3D também tenta abrir estruturas `.mcstructure` simples criadas fora da aplicação. Esta importação é **best-effort**:
-
-- importa blocos simples através da paleta da estrutura;
-- respeita o limite 32×32×32 da sala de aula;
-- ignora entidades, baús, inventários, redstone, dados avançados de blocos e camada secundária;
-- mostra avisos amigáveis quando alguma parte não é suportada.
+2. Escolhe uma ferramenta na lateral esquerda: 🧱 Construir · 🧽 Apagar · 💧 Pintar · 🪣 Encher (atalhos `1` `2` `3` `4`).
+3. Escolhe um bloco na paleta em baixo. ▾ "mais" mostra todos por categoria.
+4. **Botão esquerdo** numa face do canvas aplica a ferramenta. Arrastar pinta em fila.
+5. **Botão direito + arrastar** roda a câmara à volta da maquete. **Roda do rato** faz zoom.
+6. ViewCube no canto direito salta para vistas alinhadas. ⟲ ⟳ rodam 45°. 🏠 (ou `Espaço`) repõe.
+7. **Guardar / Abrir** mantém o projecto no browser. **Descarregar .mcstructure** exporta para Minecraft Education.
 
 ## Importar no Minecraft Education / Bedrock
 
@@ -36,28 +24,26 @@ Fluxo recomendado:
 4. Usa **Import** para escolher o ficheiro `.mcstructure` exportado.
 5. Confirma a caixa de limites e clica em **Load**.
 
-## Escopo atual
+## Ficheiro único `.mcstructure`
+
+A interface só usa `.mcstructure` para guardar, abrir e exportar. O Cubinhos 3D também tenta abrir estruturas `.mcstructure` simples criadas fora da aplicação — esta importação é **best-effort**: importa blocos da paleta, respeita o limite 32×32×32, ignora entidades, baús, inventários, redstone e dados avançados.
+
+## Escopo actual
 
 Incluído:
-- site estático compatível com GitHub Pages;
-- grelha 32×32×32;
-- paleta infantil com mais materiais reais do Minecraft, organizada por cores/famílias;
-- colocar, apagar, preencher camada, desfazer/refazer;
-- modo isométrico assistido por camada com rotação, zoom e mapa de orientação;
-- modo 3D simples com edição por faces visíveis, bloco fantasma, rotação e zoom;
-- rotação com botão direito do rato e zoom com roda dentro do canvas de construção;
-- guardar/abrir localmente no browser;
-- descarregar e abrir projetos como `.mcstructure`;
-- importar `.mcstructure` simples sem entidades.
+- editor 3D real (Three.js 0.164) com câmara orbital tipo Tinkercad;
+- ferramentas activas tipo Minecraft Education (clique único + drag-paint);
+- ViewCube + setas ⟲ ⟳ + 🏠 + caixa de limites tracejada + plataforma de chão azul-pastel;
+- texturas pixel-art geradas proceduralmente a partir da cor de cada bloco (16×16 com `NearestFilter`);
+- paleta organizada por famílias, com 8 populares sempre visíveis e gaveta para todos;
+- guardar/abrir no browser e como `.mcstructure`.
 
 Fora de escopo:
-- multiplayer;
-- contas, servidor ou base de dados;
-- inventário completo do Minecraft;
-- entidades, redstone, baús, comandos, mobs ou NBT avançado;
-- editor 3D profissional;
-- avatar, física, gravidade, WASD ou mundo infinito;
-- importação perfeita de qualquer `.mcstructure` externo.
+- multiplayer, contas, base de dados;
+- inventário completo, redstone, entidades, mobs, NBT avançado;
+- WASD, física, gravidade, andar dentro do mundo;
+- texturas Minecraft oficiais (problemas de copyright — usamos procedurais);
+- tablets/toque (próxima fase).
 
 ## Desenvolvimento
 
