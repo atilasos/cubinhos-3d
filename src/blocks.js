@@ -100,3 +100,7 @@ export function blockColor(id) {
 export function blockName(id) {
   return BLOCK_BY_ID[id]?.name ?? id.replace('minecraft:', '').replaceAll('_', ' ');
 }
+
+export function paletteBlocks() {
+  return BLOCKS.filter((b) => !b.empty);
+}
