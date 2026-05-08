@@ -7,6 +7,9 @@ const DIST_MIN = 12;
 const DIST_MAX = 90;
 const ROT_SPEED = 0.005;
 const ZOOM_SPEED = 0.12;
+const PAN_SPEED = 0.0018;          // multiplicado pela distância da câmara
+const TARGET_PADDING = 12;          // permite mover o foco até 12 unidades fora do mundo
+const PAN_KEY_STEP = 2;             // passo das teclas PageUp/Down
 
 export function createControls(camera, canvas) {
   const target = new THREE.Vector3(WORLD / 2, WORLD / 2 - 4, WORLD / 2);
@@ -35,8 +38,19 @@ export function createControls(camera, canvas) {
     const dx = e.clientX - lastX;
     const dy = e.clientY - lastY;
     lastX = e.clientX; lastY = e.clientY;
-    state.yaw -= dx * ROT_SPEED;
-    state.pitch = clamp(state.pitch - dy * ROT_SPEED, PITCH_MIN, PITCH_MAX);
+    if (e.shiftKey) {
+      // Pan: desloca o ponto-alvo no plano da câmara
+      const speed = state.distance * PAN_SPEED;
+      const right = new THREE.Vector3();
+      const up = new THREE.Vector3();
+      camera.matrixWorld.extractBasis(right, up, new THREE.Vector3());
+      target.addScaledVector(right, -dx * speed);
+      target.addScaledVector(up, dy * speed);
+      clampTarget();
+    } else {
+      state.yaw -= dx * ROT_SPEED;
+      state.pitch = clamp(state.pitch - dy * ROT_SPEED, PITCH_MIN, PITCH_MAX);
+    }
     apply();
   });
 
@@ -71,6 +85,7 @@ export function createControls(camera, canvas) {
   }
 
   function home() {
+    target.set(WORLD / 2, WORLD / 2 - 4, WORLD / 2);
     state.yaw = -Math.PI / 4;
     state.pitch = Math.PI / 5;
     state.distance = 56;
@@ -86,7 +101,19 @@ export function createControls(camera, canvas) {
     state.yaw = yaw; state.pitch = pitch; apply();
   }
 
-  return { home, rotateBy, setView, state, apply };
+  function panTargetBy(dx, dy, dz) {
+    target.x += dx; target.y += dy; target.z += dz;
+    clampTarget();
+    apply();
+  }
+
+  function clampTarget() {
+    target.x = clamp(target.x, -TARGET_PADDING, WORLD + TARGET_PADDING);
+    target.y = clamp(target.y, -TARGET_PADDING, WORLD + TARGET_PADDING);
+    target.z = clamp(target.z, -TARGET_PADDING, WORLD + TARGET_PADDING);
+  }
+
+  return { home, rotateBy, setView, panTargetBy, state, apply };
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -133,9 +160,16 @@ export function attachViewCube(controls, container) {
   });
 
   window.addEventListener('keydown', (e) => {
-    if (e.code === 'Space' && !isTypingTarget(e.target)) {
+    if (isTypingTarget(e.target)) return;
+    if (e.code === 'Space') {
       e.preventDefault();
       controls.home();
+    } else if (e.code === 'PageUp') {
+      e.preventDefault();
+      controls.panTargetBy(0, PAN_KEY_STEP, 0);
+    } else if (e.code === 'PageDown') {
+      e.preventDefault();
+      controls.panTargetBy(0, -PAN_KEY_STEP, 0);
     }
   });
 }
