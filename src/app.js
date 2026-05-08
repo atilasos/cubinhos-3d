@@ -1,665 +1,228 @@
-import { BLOCKS, blockColor, blockName } from './blocks.js';
-import { createModel, setVoxel, getVoxel, fillLayer, serializeModel, deserializeModel, createHistory } from './model.js';
-import { downloadMcStructure, importMcStructure } from './mcstructure.js';
-import { findIsoFaceTarget, projectIsoCell, screenToIsoCell, rotationLabel } from './isometric.js';
+import * as THREE from 'three';
+import { createScene } from './scene.js';
+import { createVoxelMeshes } from './voxel-mesh.js';
+import { createControls, attachViewCube } from './controls.js';
+import { createGhost } from './ghost.js';
+import { castRay } from './raycaster.js';
+import { createTools } from './tools.js';
+import { createModel, createHistory, deserializeModel, serializeModel } from './model.js';
+import { exportMcStructure, importMcStructure, downloadMcStructure } from './mcstructure.js';
+import { paletteBlocks, BLOCK_BY_ID } from './blocks.js';
+import { buildTextureCanvasData } from './textures.js';
 
-const STORAGE_KEY = 'voxelcraft.project.v1';
-const AIR = 'minecraft:air';
-const ISO_CELL_WIDTH = 18;
-const ISO_CELL_HEIGHT = 10;
-const ISO_BLOCK_HEIGHT = 8;
-const RIGHT_MOUSE_BUTTON = 2;
-const ROTATE_DRAG_PIXELS = 70;
-let model = createModel();
-let history = createHistory(model);
-let selectedBlock = BLOCKS.find((block) => !block.empty)?.id ?? 'minecraft:stone';
-let tool = 'paint';
-let layer = 0;
-let view = 'iso';
-let buildMode = 'layer';
-let isoRotation = 0;
-let isoZoom = 1;
-let isoCursor = null;
-let dragging = false;
-let rotatingCanvas = false;
-let rotateDragStartX = 0;
+const STORAGE_KEY = 'cubinhos3d:project';
 
-const el = {
-  palette: document.querySelector('#palette'),
-  grid: document.querySelector('#grid'),
-  layer: document.querySelector('#layer'),
-  layerValue: document.querySelector('#layerValue'),
-  layerMax: document.querySelector('#layerMax'),
-  preview: document.querySelector('#preview'),
-  status: document.querySelector('#status'),
-  modeLayer: document.querySelector('#modeLayer'),
-  modeIso: document.querySelector('#modeIso'),
-  mode3d: document.querySelector('#mode3d'),
-  layerWorkspace: document.querySelector('#layerWorkspace'),
-  isoWorkspace: document.querySelector('#isoWorkspace'),
-  isoBuilder: document.querySelector('#isoBuilder'),
-  layerMap: document.querySelector('#layerMap'),
-  isoZoom: document.querySelector('#isoZoom'),
-  rotateLeft: document.querySelector('#rotateLeft'),
-  rotateRight: document.querySelector('#rotateRight'),
-  toolPaint: document.querySelector('#toolPaint'),
-  toolErase: document.querySelector('#toolErase'),
-  fillLayer: document.querySelector('#fillLayer'),
-  clearLayer: document.querySelector('#clearLayer'),
-  undo: document.querySelector('#undo'),
-  redo: document.querySelector('#redo'),
-  saveLocal: document.querySelector('#saveLocal'),
-  loadLocal: document.querySelector('#loadLocal'),
-  downloadProject: document.querySelector('#downloadProject'),
-  openProject: document.querySelector('#openProject'),
-  exportStructure: document.querySelector('#exportStructure'),
-};
+const canvas = document.getElementById('canvas3d');
+const model = createModel();
+const history = createHistory(model);
 
-function setStatus(message) {
-  el.status.textContent = message;
-}
+const sceneCtx = createScene(canvas);
+const meshes = createVoxelMeshes(sceneCtx.scene);
+const ghost = createGhost(sceneCtx.scene);
+const controls = createControls(sceneCtx.camera, canvas);
+attachViewCube(controls, document.getElementById('viewcubeHost'));
 
-function normalizeQuarterTurn(rotation) {
-  return ((rotation % 4) + 4) % 4;
-}
+const tools = createTools(model, (changes) => {
+  for (const c of changes) meshes.setVoxel(c.prevId, c.nextId, c.x, c.y, c.z);
+});
 
-function rotateIsoView(direction) {
-  isoRotation = normalizeQuarterTurn(isoRotation + direction);
-  isoCursor = null;
-  renderAllViews();
-}
+let activeBlockId = 'minecraft:grass_block';
+tools.setBlock(activeBlockId);
 
-function zoomStep() {
-  return Number(el.isoZoom.step) || 0.1;
-}
+renderPalette();
+meshes.rebuild(model);
 
-function setIsoZoom(nextZoom) {
-  const min = Number(el.isoZoom.min) || 0.6;
-  const max = Number(el.isoZoom.max) || 1.8;
-  const step = zoomStep();
-  const stepped = Math.round((nextZoom - min) / step) * step + min;
-  isoZoom = Number(Math.max(min, Math.min(max, stepped)).toFixed(2));
-  el.isoZoom.value = String(isoZoom);
-  renderAllViews();
-}
+// ----- Canvas input → raycaster → tools/ghost -----
+const ndc = new THREE.Vector2();
+const ray = new THREE.Raycaster();
 
-function renderPalette() {
-  const items = [];
-  let currentCategory = '';
-  for (const block of BLOCKS.filter((item) => !item.empty)) {
-    if (block.category !== currentCategory) {
-      currentCategory = block.category;
-      const heading = document.createElement('h3');
-      heading.className = 'palette-category';
-      heading.textContent = currentCategory;
-      items.push(heading);
-    }
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `swatch${block.id === selectedBlock ? ' active' : ''}`;
-    const chip = document.createElement('span');
-    chip.className = 'color-chip';
-    chip.style.background = block.color;
-    const label = document.createElement('span');
-    label.textContent = block.name;
-    button.append(chip, label);
-    button.title = block.id;
-    button.addEventListener('click', () => {
-      selectedBlock = block.id;
-      renderPalette();
-      setStatus(`Bloco escolhido: ${block.name}.`);
-    });
-    items.push(button);
-  }
-  el.palette.replaceChildren(...items);
-}
-
-function syncLayerControl() {
-  const maxLayer = model.size.y - 1;
-  if (layer > maxLayer) layer = maxLayer;
-  el.layer.max = String(maxLayer);
-  el.layerValue.textContent = String(layer);
-  el.layerMax.textContent = String(maxLayer);
-  el.layer.value = String(layer);
-}
-
-function renderGrid() {
-  syncLayerControl();
-  el.grid.style.gridTemplateColumns = `repeat(${model.size.x}, minmax(10px, 1fr))`;
-  const cells = [];
-  for (let z = 0; z < model.size.z; z += 1) {
-    for (let x = 0; x < model.size.x; x += 1) {
-      const block = getVoxel(model, x, layer, z);
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'cell';
-      button.dataset.x = String(x);
-      button.dataset.z = String(z);
-      button.style.background = block === AIR ? '#f8fafc' : blockColor(block);
-      button.title = `x ${x}, y ${layer}, z ${z}: ${blockName(block)}`;
-      button.addEventListener('pointerdown', (event) => {
-        dragging = true;
-        event.currentTarget.setPointerCapture(event.pointerId);
-        editCell(x, z, true);
-      });
-      button.addEventListener('pointerenter', () => {
-        if (dragging) editCell(x, z, false);
-      });
-      button.addEventListener('pointerup', () => { dragging = false; });
-      cells.push(button);
-    }
-  }
-  el.grid.replaceChildren(...cells);
-}
-
-function editCell(x, z, commit) {
-  const block = tool === 'erase' ? AIR : selectedBlock;
-  if (getVoxel(model, x, layer, z) === block) return;
-  setVoxel(model, x, layer, z, block);
-  if (commit) history.commit(model);
-  renderEditedViews();
-}
-
-function setTool(nextTool) {
-  tool = nextTool;
-  el.toolPaint.classList.toggle('active', tool === 'paint');
-  el.toolErase.classList.toggle('active', tool === 'erase');
-  setStatus(tool === 'paint' ? 'Ferramenta: colocar blocos.' : 'Ferramenta: apagar blocos.');
-}
-
-function setBuildMode(nextMode) {
-  buildMode = nextMode;
-  isoCursor = null;
-  el.modeLayer.classList.toggle('active', buildMode === 'layer');
-  el.modeIso.classList.toggle('active', buildMode === 'iso');
-  el.mode3d.classList.toggle('active', buildMode === '3d');
-  el.layerWorkspace.classList.toggle('hidden', buildMode !== 'layer');
-  el.isoWorkspace.classList.toggle('hidden', !['iso', '3d'].includes(buildMode));
-  renderAllViews();
-  if (buildMode === '3d') {
-    setStatus('Modo 3D: aponta para uma face, vê o bloco fantasma e clica para construir.');
-  } else {
-    setStatus(buildMode === 'iso'
-      ? 'Modo isométrico: constrói na camada atual com rotação e zoom.'
-      : 'Modo camadas: constrói na grelha 2D da camada atual.');
-  }
-}
-
-function projectionOptions(canvas) {
-  return {
-    size: { x: model.size.x, z: model.size.z },
-    rotation: isoRotation,
-    zoom: isoZoom,
-    originX: canvas.width / 2,
-    originY: 48,
-    cellWidth: ISO_CELL_WIDTH,
-    cellHeight: ISO_CELL_HEIGHT,
-    blockHeight: ISO_BLOCK_HEIGHT,
-  };
-}
-
-function occupiedCubes() {
-  const cubes = [];
-  for (let x = 0; x < model.size.x; x += 1) {
-    for (let y = 0; y < model.size.y; y += 1) {
-      for (let z = 0; z < model.size.z; z += 1) {
-        const block = getVoxel(model, x, y, z);
-        if (block !== AIR) cubes.push({ x, y, z, block });
-      }
-    }
-  }
-  return cubes;
-}
-
-function renderIsoBuilder() {
-  if (!el.isoBuilder) return;
-  const canvas = el.isoBuilder;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#e0f2fe';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  drawIsoLayerGrid(ctx, canvas);
-  drawIsoBlocks(ctx, canvas, { focusLayer: true });
-  if (buildMode === '3d') drawIsoGhost(ctx, canvas);
-  ctx.fillStyle = '#334155';
-  ctx.font = '16px system-ui';
-  const label = buildMode === '3d'
-    ? 'Modo 3D • clica numa face para construir'
-    : `Modo isométrico • camada ${layer}`;
-  ctx.fillText(`${label} • vista ${rotationLabel(isoRotation)} • zoom ${isoZoom.toFixed(1)}×`, 18, canvas.height - 18);
-}
-
-function drawIsoLayerGrid(ctx, canvas) {
-  const options = projectionOptions(canvas);
-  for (let x = 0; x < model.size.x; x += 1) {
-    for (let z = 0; z < model.size.z; z += 1) {
-      const point = projectIsoCell(x, z, options);
-      drawDiamond(
-        ctx,
-        point.cx,
-        point.cy + layer * -1.5 * isoZoom,
-        (ISO_CELL_WIDTH / 2) * isoZoom,
-        (ISO_CELL_HEIGHT / 2) * isoZoom,
-        '#ffffff',
-        'rgba(37,99,235,.14)',
-      );
-    }
-  }
-  if (isoCursor) {
-    const point = projectIsoCell(isoCursor.x, isoCursor.z, options);
-    drawDiamond(
-      ctx,
-      point.cx,
-      point.cy + layer * -1.5 * isoZoom,
-      (ISO_CELL_WIDTH / 2 + 1) * isoZoom,
-      (ISO_CELL_HEIGHT / 2 + 1) * isoZoom,
-      'rgba(251,191,36,.42)',
-      '#f59e0b',
-    );
-  }
-}
-
-function drawIsoBlocks(ctx, canvas, { focusLayer = false } = {}) {
-  const options = projectionOptions(canvas);
-  const cubes = occupiedCubes();
-  cubes.sort((a, b) => (a.x + a.y + a.z) - (b.x + b.y + b.z));
-  for (const cube of cubes) {
-    const point = projectIsoCell(cube.x, cube.z, options);
-    const alpha = focusLayer && buildMode !== '3d' && cube.y !== layer ? 0.28 : 1;
-    drawIsoBlock(ctx, point.cx, point.cy - cube.y * ISO_BLOCK_HEIGHT * isoZoom, cube.block, alpha);
-  }
-}
-
-function drawIsoGhost(ctx, canvas) {
-  if (!isoCursor) return;
-  const point = projectIsoCell(isoCursor.x, isoCursor.z, projectionOptions(canvas));
-  const y = point.cy - isoCursor.y * ISO_BLOCK_HEIGHT * isoZoom;
-  if (tool === 'erase') {
-    drawIsoBlock(ctx, point.cx, y, '#ef4444', 0.32);
-    return;
-  }
-  drawIsoBlock(ctx, point.cx, y, selectedBlock, 0.42);
-}
-
-function drawDiamond(ctx, cx, cy, halfW, halfH, fill, stroke) {
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - halfH);
-  ctx.lineTo(cx + halfW, cy);
-  ctx.lineTo(cx, cy + halfH);
-  ctx.lineTo(cx - halfW, cy);
-  ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill();
-  ctx.strokeStyle = stroke;
-  ctx.stroke();
-}
-
-function drawIsoBlock(ctx, cx, cy, block, alpha = 1) {
-  const w = (ISO_CELL_WIDTH / 2) * isoZoom;
-  const h = (ISO_CELL_HEIGHT / 2) * isoZoom;
-  const height = ISO_BLOCK_HEIGHT * isoZoom;
-  const color = block.startsWith?.('#') ? block : blockColor(block);
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  drawDiamond(ctx, cx, cy, w, h, color, 'rgba(15,23,42,.35)');
-  ctx.fillStyle = shade(color, -18);
-  ctx.beginPath();
-  ctx.moveTo(cx - w, cy);
-  ctx.lineTo(cx, cy + h);
-  ctx.lineTo(cx, cy + h + height);
-  ctx.lineTo(cx - w, cy + height);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = shade(color, -32);
-  ctx.beginPath();
-  ctx.moveTo(cx + w, cy);
-  ctx.lineTo(cx, cy + h);
-  ctx.lineTo(cx, cy + h + height);
-  ctx.lineTo(cx + w, cy + height);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-}
-
-function shade(hex, amount) {
-  const clean = hex.replace('#', '');
-  const value = Number.parseInt(clean, 16);
-  const r = Math.max(0, Math.min(255, (value >> 16) + amount));
-  const g = Math.max(0, Math.min(255, ((value >> 8) & 0xff) + amount));
-  const b = Math.max(0, Math.min(255, (value & 0xff) + amount));
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-}
-
-function renderLayerMap() {
-  if (!el.layerMap) return;
-  const canvas = el.layerMap;
-  const ctx = canvas.getContext('2d');
-  const cell = canvas.width / model.size.x;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  for (let x = 0; x < model.size.x; x += 1) {
-    for (let z = 0; z < model.size.z; z += 1) {
-      const block = getVoxel(model, x, layer, z);
-      if (block !== AIR) {
-        ctx.fillStyle = blockColor(block);
-        ctx.fillRect(x * cell, z * cell, cell, cell);
-      }
-    }
-  }
-  ctx.strokeStyle = '#cbd5e1';
-  for (let i = 0; i <= model.size.x; i += 4) {
-    ctx.beginPath();
-    ctx.moveTo(i * cell, 0);
-    ctx.lineTo(i * cell, canvas.height);
-    ctx.moveTo(0, i * cell);
-    ctx.lineTo(canvas.width, i * cell);
-    ctx.stroke();
-  }
-  if (isoCursor) {
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(isoCursor.x * cell, isoCursor.z * cell, cell, cell);
-    ctx.lineWidth = 1;
-    if (Number.isInteger(isoCursor.y)) {
-      ctx.fillStyle = '#0f172a';
-      ctx.font = '12px system-ui';
-      ctx.fillText(`alvo y=${isoCursor.y}`, 8, 18);
-    }
-  }
-  ctx.fillStyle = '#0f172a';
-  ctx.font = '14px system-ui';
-  ctx.fillText(`Camada ${layer}`, 8, canvas.height - 10);
-}
-
-function renderPreview() {
-  const canvas = el.preview;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#e0f2fe';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  if (view === 'iso') {
-    drawIsoBlocks(ctx, canvas);
-  } else {
-    drawFlatPreview(ctx);
-  }
-  ctx.fillStyle = '#475569';
-  ctx.font = '16px system-ui';
-  ctx.fillText(`vista ${view} • rotação ${rotationLabel(isoRotation)} • zoom ${isoZoom.toFixed(1)}×`, 18, canvas.height - 18);
-}
-
-function drawFlatPreview(ctx) {
-  const cubes = [];
-  for (let x = 0; x < model.size.x; x += 1) {
-    for (let y = 0; y < model.size.y; y += 1) {
-      for (let z = 0; z < model.size.z; z += 1) {
-        const block = getVoxel(model, x, y, z);
-        if (block !== AIR) cubes.push({ x, y, z, block });
-      }
-    }
-  }
-  const scale = (view === 'top' ? 10 : 8) * isoZoom;
-  for (const cube of cubes) {
-    let sx;
-    let sy;
-    if (view === 'front') {
-      sx = (cube.x - model.size.x / 2) * scale + el.preview.width / 2;
-      sy = 330 - cube.y * scale;
-    } else if (view === 'side') {
-      sx = (cube.z - model.size.z / 2) * scale + el.preview.width / 2;
-      sy = 330 - cube.y * scale;
-    } else {
-      sx = (cube.x - model.size.x / 2) * scale + el.preview.width / 2;
-      sy = 20 + cube.z * scale;
-    }
-    ctx.fillStyle = blockColor(cube.block);
-    ctx.strokeStyle = 'rgba(15,23,42,.25)';
-    ctx.fillRect(sx, sy, scale, scale);
-    ctx.strokeRect(sx, sy, scale, scale);
-  }
-}
-
-function loadModel(nextModel, message = 'Projeto aberto com sucesso.') {
-  model = nextModel;
-  history = createHistory(model);
-  layer = 0;
-  syncLayerControl();
-  isoCursor = null;
-  renderAll();
-  setStatus(message);
-}
-
-function warningSuffix(warnings) {
-  if (!warnings.length) return '';
-  return ` Aviso: ${warnings.slice(0, 2).join(' ')}`;
-}
-
-function renderEditedViews() {
-  if (buildMode === 'layer') renderGrid();
-  else renderIsoBuilder();
-  renderLayerMap();
-  renderPreview();
-}
-
-function renderAllViews() {
-  renderGrid();
-  renderIsoBuilder();
-  renderLayerMap();
-  renderPreview();
-}
-
-function renderAll() {
-  renderPalette();
-  renderAllViews();
-}
-
-function canvasPoint(event, canvas) {
+function pointerToTarget(e) {
   const rect = canvas.getBoundingClientRect();
-  return {
-    x: (event.clientX - rect.left) * (canvas.width / rect.width),
-    y: (event.clientY - rect.top) * (canvas.height / rect.height),
-  };
+  ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  ray.setFromCamera(ndc, sceneCtx.camera);
+  return castRay(model, { origin: ray.ray.origin.toArray(), dir: ray.ray.direction.toArray() });
 }
 
-function editIsoFromEvent(event, commit) {
-  if (buildMode === '3d') {
-    edit3dFromEvent(event, commit);
-    return;
-  }
-  const point = canvasPoint(event, el.isoBuilder);
-  const cell = screenToIsoCell(point.x, point.y + layer * 1.5 * isoZoom, projectionOptions(el.isoBuilder));
-  if (!cell) {
-    isoCursor = null;
-    renderIsoBuilder();
-    renderLayerMap();
-    return;
-  }
-  isoCursor = cell;
-  editCell(cell.x, cell.z, commit);
-}
+let painting = false;
 
-function targetFrom3dPoint(point) {
-  const options = projectionOptions(el.isoBuilder);
-  const cubes = occupiedCubes();
-  const picked = findIsoFaceTarget(point.x, point.y, cubes, {
-    ...options,
-    size: model.size,
+canvas.addEventListener('pointermove', (e) => {
+  const target = pointerToTarget(e);
+  if (!target) { ghost.hide(); return; }
+  if (tools.getTool() === 'erase' && target.kind === 'voxel') ghost.showErase(target.voxel);
+  else if (target.ghostVoxel) ghost.showBuild(activeBlockId, target.ghostVoxel);
+  else ghost.hide();
+  if (painting) {
+    if (target) tools.applyAt(target);
+  }
+});
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  painting = true;
+  tools.startStroke();
+  const target = pointerToTarget(e);
+  if (target) {
+    tools.applyAt(target);
+    saveLocal();
+  }
+});
+
+canvas.addEventListener('pointerup', (e) => {
+  if (e.button !== 0 || !painting) return;
+  painting = false;
+  const changes = tools.endStroke();
+  if (changes.length) { history.commit(model); saveLocal(); }
+});
+
+canvas.addEventListener('pointercancel', () => {
+  if (!painting) return;
+  painting = false;
+  tools.endStroke();
+});
+
+// ----- Tool buttons -----
+document.querySelectorAll('.left-rail .tool[data-tool]').forEach((btn) => {
+  btn.addEventListener('click', () => activateTool(btn.dataset.tool));
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.target.closest('input, textarea')) return;
+  if (e.key === '1') activateTool('build');
+  else if (e.key === '2') activateTool('erase');
+  else if (e.key === '3') activateTool('paint');
+  else if (e.key === '4') activateTool('fill');
+  else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { undo(); e.preventDefault(); }
+  else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z') { redo(); e.preventDefault(); }
+});
+
+document.getElementById('undoBtn').addEventListener('click', undo);
+document.getElementById('redoBtn').addEventListener('click', redo);
+
+function activateTool(name) {
+  tools.setTool(name);
+  document.querySelectorAll('.left-rail .tool[data-tool]').forEach((b) => {
+    b.classList.toggle('active', b.dataset.tool === name);
   });
-  if (picked) {
-    if (tool === 'erase') return { x: picked.cube.x, y: picked.cube.y, z: picked.cube.z, removable: true };
-    if (!picked.placeable) return null;
-    return getVoxel(model, picked.target.x, picked.target.y, picked.target.z) === AIR
-      ? { ...picked.target, removable: false }
-      : null;
-  }
-  if (tool === 'erase') return null;
-  const ground = screenToIsoCell(point.x, point.y, options);
-  if (!ground) return null;
-  return getVoxel(model, ground.x, 0, ground.z) === AIR
-    ? { x: ground.x, y: 0, z: ground.z, removable: false }
-    : null;
 }
 
-function edit3dFromEvent(event, commit) {
-  const point = canvasPoint(event, el.isoBuilder);
-  const target = targetFrom3dPoint(point);
-  isoCursor = target;
-  if (!target) {
-    renderIsoBuilder();
-    renderLayerMap();
-    return;
+function undo() { if (history.undo(model)) { meshes.rebuild(model); saveLocal(); } }
+function redo() { if (history.redo(model)) { meshes.rebuild(model); saveLocal(); } }
+
+// ----- Palette -----
+function renderPalette() {
+  const strip = document.getElementById('paletteStrip');
+  const popular = ['minecraft:grass_block','minecraft:dirt','minecraft:stone','minecraft:oak_planks',
+                   'minecraft:cobblestone','minecraft:sand','minecraft:white_concrete','minecraft:gold_block'];
+  strip.innerHTML = '';
+  for (const id of popular) strip.appendChild(makeSwatch(id));
+
+  const full = document.getElementById('paletteFull');
+  full.innerHTML = '';
+  const byCategory = new Map();
+  for (const block of paletteBlocks()) {
+    if (!byCategory.has(block.category)) byCategory.set(block.category, []);
+    byCategory.get(block.category).push(block);
   }
-  const block = target.removable || tool === 'erase' ? AIR : selectedBlock;
-  if (tool === 'paint' && getVoxel(model, target.x, target.y, target.z) !== AIR) {
-    renderIsoBuilder();
-    renderLayerMap();
-    return;
+  for (const [cat, list] of byCategory) {
+    const h = document.createElement('h3'); h.textContent = cat; full.appendChild(h);
+    const grid = document.createElement('div'); grid.className = 'grid';
+    for (const block of list) grid.appendChild(makeSwatch(block.id));
+    full.appendChild(grid);
   }
-  if (getVoxel(model, target.x, target.y, target.z) === block) {
-    renderIsoBuilder();
-    renderLayerMap();
-    return;
-  }
-  setVoxel(model, target.x, target.y, target.z, block);
-  layer = target.y;
-  syncLayerControl();
-  if (commit) history.commit(model);
-  renderEditedViews();
+
+  document.getElementById('paletteToggle').addEventListener('click', () => {
+    const drawer = document.getElementById('paletteDrawer');
+    drawer.dataset.state = drawer.dataset.state === 'open' ? 'closed' : 'open';
+  });
+  document.getElementById('paletteMore').addEventListener('click', () => {
+    document.getElementById('paletteFull').classList.toggle('hidden');
+  });
 }
 
-el.layer.addEventListener('input', (event) => {
-  layer = Number(event.target.value);
-  renderAllViews();
-});
-el.modeLayer.addEventListener('click', () => setBuildMode('layer'));
-el.modeIso.addEventListener('click', () => setBuildMode('iso'));
-el.mode3d.addEventListener('click', () => setBuildMode('3d'));
-el.toolPaint.addEventListener('click', () => setTool('paint'));
-el.toolErase.addEventListener('click', () => setTool('erase'));
-el.fillLayer.addEventListener('click', () => {
-  fillLayer(model, layer, selectedBlock);
-  history.commit(model);
-  renderAllViews();
-  setStatus(`Camada ${layer} preenchida com ${blockName(selectedBlock)}.`);
-});
-el.clearLayer.addEventListener('click', () => {
-  fillLayer(model, layer, AIR);
-  history.commit(model);
-  renderAllViews();
-  setStatus(`Camada ${layer} limpa.`);
-});
-el.undo.addEventListener('click', () => {
-  if (history.undo(model)) renderAllViews();
-  setStatus('Desfazer aplicado.');
-});
-el.redo.addEventListener('click', () => {
-  if (history.redo(model)) renderAllViews();
-  setStatus('Refazer aplicado.');
-});
-el.saveLocal.addEventListener('click', () => {
-  localStorage.setItem(STORAGE_KEY, serializeModel(model));
-  setStatus('Projeto guardado neste browser.');
-});
-el.loadLocal.addEventListener('click', () => {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) return setStatus('Ainda não há projeto guardado neste browser.');
-  loadModel(deserializeModel(saved), 'Projeto aberto do browser.');
-});
-el.downloadProject.addEventListener('click', () => {
-  downloadMcStructure(model, 'cubinhos-3d.mcstructure');
-  setStatus('Projeto descarregado em .mcstructure. É o mesmo ficheiro para reabrir aqui e importar no Minecraft.');
-});
-el.openProject.addEventListener('change', async (event) => {
-  const [file] = event.target.files;
-  if (!file) return;
+function makeSwatch(blockId) {
+  const block = BLOCK_BY_ID[blockId];
+  const btn = document.createElement('button');
+  btn.className = 'swatch';
+  btn.dataset.blockId = blockId;
+  btn.title = block.name;
+  btn.style.background = block.color;
+  btn.style.backgroundImage = swatchDataUrl(block.color);
+  if (blockId === activeBlockId) btn.classList.add('active');
+  btn.addEventListener('click', () => {
+    activeBlockId = blockId;
+    tools.setBlock(blockId);
+    document.querySelectorAll('.swatch').forEach((s) => s.classList.toggle('active', s.dataset.blockId === blockId));
+  });
+  return btn;
+}
+
+const swatchCache = new Map();
+function swatchDataUrl(hex) {
+  if (swatchCache.has(hex)) return swatchCache.get(hex);
+  const data = buildTextureCanvasData(hex); // Uint8ClampedArray length 1024
+  const c = document.createElement('canvas'); c.width = 16; c.height = 16;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(16, 16);
+  img.data.set(data);
+  ctx.putImageData(img, 0, 0);
+  const url = `url("${c.toDataURL()}")`;
+  swatchCache.set(hex, url);
+  return url;
+}
+
+// ----- File / storage -----
+function saveLocal() {
+  try { localStorage.setItem(STORAGE_KEY, serializeModel(model)); } catch {}
+}
+function loadLocal() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return false;
   try {
-    const result = importMcStructure(await file.arrayBuffer());
-    loadModel(result.model, `Estrutura .mcstructure aberta com sucesso.${warningSuffix(result.warnings)}`);
-  } catch (error) {
-    setStatus(error instanceof Error ? error.message : 'Não consegui abrir esse ficheiro .mcstructure.');
-  }
-  event.target.value = '';
-});
-el.exportStructure.addEventListener('click', () => {
-  downloadMcStructure(model, 'cubinhos-3d.mcstructure');
-  setStatus('Ficheiro .mcstructure pronto. Podes reabri-lo no Cubinhos 3D ou importá-lo com Structure Block.');
-});
-el.rotateLeft.addEventListener('click', () => {
-  rotateIsoView(-1);
-});
-el.rotateRight.addEventListener('click', () => {
-  rotateIsoView(1);
-});
-el.isoZoom.addEventListener('input', (event) => {
-  setIsoZoom(Number(event.target.value));
-});
-el.isoBuilder.addEventListener('pointerdown', (event) => {
-  if (event.button === RIGHT_MOUSE_BUTTON) {
-    event.preventDefault();
-    dragging = false;
-    rotatingCanvas = true;
-    rotateDragStartX = event.clientX;
-    el.isoBuilder.setPointerCapture(event.pointerId);
-    setStatus('Botão direito: arrasta para rodar a vista.');
-    return;
-  }
-  if (event.button !== 0) return;
-  dragging = true;
-  el.isoBuilder.setPointerCapture(event.pointerId);
-  editIsoFromEvent(event, true);
-});
-el.isoBuilder.addEventListener('pointermove', (event) => {
-  if (rotatingCanvas) {
-    event.preventDefault();
-    const deltaX = event.clientX - rotateDragStartX;
-    const steps = Math.trunc(deltaX / ROTATE_DRAG_PIXELS);
-    if (steps !== 0) {
-      rotateDragStartX += steps * ROTATE_DRAG_PIXELS;
-      rotateIsoView(steps);
-    }
-    return;
-  }
-  const point = canvasPoint(event, el.isoBuilder);
-  const cell = buildMode === '3d'
-    ? targetFrom3dPoint(point)
-    : screenToIsoCell(point.x, point.y + layer * 1.5 * isoZoom, projectionOptions(el.isoBuilder));
-  isoCursor = cell;
-  if (dragging && cell) editIsoFromEvent(event, false);
-  else {
-    renderIsoBuilder();
-    renderLayerMap();
-  }
-});
-el.isoBuilder.addEventListener('pointerup', () => {
-  dragging = false;
-  if (rotatingCanvas) {
-    rotatingCanvas = false;
-    setStatus(`Vista ${rotationLabel(isoRotation)}.`);
-  }
-});
-el.isoBuilder.addEventListener('pointercancel', () => {
-  dragging = false;
-  rotatingCanvas = false;
-});
-el.isoBuilder.addEventListener('contextmenu', (event) => {
-  event.preventDefault();
-});
-el.isoBuilder.addEventListener('wheel', (event) => {
-  event.preventDefault();
-  const direction = event.deltaY > 0 ? -1 : 1;
-  setIsoZoom(isoZoom + direction * zoomStep());
-  setStatus(`Zoom ${isoZoom.toFixed(1)}×.`);
-}, { passive: false });
-for (const button of document.querySelectorAll('[data-view]')) {
-  button.addEventListener('click', () => {
-    view = button.dataset.view;
-    renderPreview();
-  });
+    const next = deserializeModel(raw);
+    model.cells = next.cells; model.size = next.size;
+    history.reset(model);
+    meshes.rebuild(model);
+    return true;
+  } catch { return false; }
 }
-window.addEventListener('pointerup', () => {
-  dragging = false;
-  rotatingCanvas = false;
+
+document.getElementById('saveLocal').addEventListener('click', () => {
+  saveLocal();
+  status('Projecto guardado no browser.');
 });
-renderAll();
+document.getElementById('loadLocal').addEventListener('click', () => {
+  if (loadLocal()) status('Projecto carregado do browser.');
+  else status('Não há projecto guardado no browser.');
+});
+document.getElementById('downloadProject').addEventListener('click', () => {
+  downloadMcStructure(model, 'cubinhos-3d.mcstructure');
+});
+document.getElementById('exportStructure').addEventListener('click', () => {
+  downloadMcStructure(model, 'cubinhos-3d.mcstructure');
+  status('Ficheiro pronto. Abre o Structure Block no Minecraft Education.');
+});
+document.getElementById('openProject').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0]; if (!file) return;
+  try {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const { model: imported, warnings } = importMcStructure(buf);
+    model.cells = imported.cells; model.size = imported.size;
+    history.reset(model);
+    meshes.rebuild(model);
+    saveLocal();
+    status(warnings && warnings.length ? `Importado com avisos: ${warnings[0]}` : 'Importado.');
+  } catch (err) {
+    status('Falha ao importar: ' + err.message);
+  }
+  e.target.value = '';
+});
+
+function status(msg) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 3500);
+}
+
+// Initial load
+loadLocal();
