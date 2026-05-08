@@ -18,90 +18,46 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <header class="hero">
-    <div>
-      <p class="eyebrow">Minecraft Education • 1.º ciclo</p>
-      <h1>Construtor Voxel 3D</h1>
-      <p>Planeia uma construção em blocos reais do Minecraft e usa um único ficheiro <code>.mcstructure</code> para guardar, abrir e importar.</p>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">🧱</span>
+      <span class="brand-name">Cubinhos 3D</span>
     </div>
-    <div class="hero-actions">
-      <button id="saveLocal" type="button">Guardar no browser</button>
-      <button id="loadLocal" type="button">Abrir do browser</button>
+    <div class="topbar-actions">
+      <button id="loadLocal" type="button">Abrir</button>
+      <button id="saveLocal" type="button">Guardar</button>
+      <label class="file-button">Abrir .mcstructure
+        <input id="openProject" type="file" accept=".mcstructure,application/octet-stream">
+      </label>
       <button id="downloadProject" type="button">Descarregar .mcstructure</button>
-      <label class="file-button">Abrir .mcstructure <input id="openProject" type="file" accept=".mcstructure,application/octet-stream"></label>
       <button id="exportStructure" class="primary" type="button">Usar no Minecraft</button>
     </div>
   </header>
 
-  <main class="layout">
-    <section class="panel palette-panel" aria-labelledby="palette-title">
-      <h2 id="palette-title">1. Escolhe um bloco</h2>
-      <div id="palette" class="palette" role="list"></div>
-      <p class="hint">A paleta está organizada por famílias de cores e usa materiais reais do Minecraft.</p>
-    </section>
+  <div class="workspace">
+    <aside class="left-rail" aria-label="Ferramentas">
+      <button class="tool active" data-tool="build" aria-label="Construir (1)" title="Construir (1)">🧱</button>
+      <button class="tool" data-tool="erase" aria-label="Apagar (2)" title="Apagar (2)">🧽</button>
+      <button class="tool" data-tool="paint" aria-label="Pintar (3)" title="Pintar (3)">💧</button>
+      <button class="tool" data-tool="fill"  aria-label="Encher camada (4)" title="Encher camada (4)">🪣</button>
+      <div class="rail-divider"></div>
+      <button class="tool" id="undoBtn" aria-label="Desfazer (Ctrl+Z)" title="Desfazer">↶</button>
+      <button class="tool" id="redoBtn" aria-label="Refazer (Ctrl+Shift+Z)" title="Refazer">↷</button>
+    </aside>
 
-    <section class="panel editor-panel" aria-labelledby="editor-title">
-      <div class="panel-heading">
-        <div>
-          <h2 id="editor-title">2. Constrói</h2>
-          <p>Camada <strong id="layerValue">0</strong> de <strong id="layerMax">31</strong></p>
-          <div class="mode-toggle" aria-label="Modo de construção">
-            <button id="modeLayer" class="active" type="button">Camadas</button>
-            <button id="modeIso" type="button">Isométrico</button>
-            <button id="mode3d" type="button">3D</button>
-          </div>
-        </div>
-        <div class="tools" aria-label="Ferramentas">
-          <button id="toolPaint" class="active" type="button">Colocar</button>
-          <button id="toolErase" type="button">Apagar</button>
-          <button id="fillLayer" type="button">Preencher camada</button>
-          <button id="clearLayer" type="button">Limpar camada</button>
-          <button id="undo" type="button">Desfazer</button>
-          <button id="redo" type="button">Refazer</button>
-        </div>
+    <main class="canvas-host">
+      <canvas id="canvas3d" aria-label="Cena 3D de construção"></canvas>
+      <div id="viewcubeHost"></div>
+      <div class="palette-drawer" id="paletteDrawer" data-state="open">
+        <button class="palette-toggle" id="paletteToggle" aria-label="Mostrar/esconder paleta">▾</button>
+        <div class="palette-strip" id="paletteStrip" role="list"></div>
+        <button class="palette-more" id="paletteMore" aria-label="Mostrar todos os blocos">▾ mais</button>
       </div>
-      <label class="layer-control" for="layer">Altura da camada</label>
-      <input id="layer" type="range" min="0" max="31" value="0">
-      <div id="layerWorkspace">
-        <div id="grid" class="grid" aria-label="Grelha da camada atual"></div>
-      </div>
-      <div id="isoWorkspace" class="iso-workspace hidden">
-        <div class="iso-controls" aria-label="Controlos isométricos">
-          <button id="rotateLeft" type="button">⟲ Rodar</button>
-          <label for="isoZoom">Zoom</label>
-          <input id="isoZoom" type="range" min="0.6" max="1.8" step="0.1" value="1">
-          <button id="rotateRight" type="button">Rodar ⟳</button>
-        </div>
-        <canvas id="isoBuilder" width="620" height="460" aria-label="Construção isométrica e edição 3D por faces"></canvas>
-        <aside class="layer-map-card" aria-label="Mapa de orientação por camadas">
-          <h3>Mapa da camada</h3>
-          <canvas id="layerMap" width="180" height="180" aria-label="Mapa de orientação da camada atual"></canvas>
-          <p class="hint">Mapa de orientação: mostra a camada atual e onde há cubinhos. No modo 3D, o alvo também aparece aqui.</p>
-          <p class="hint"><strong>Modo 3D:</strong> aponta para uma face, confirma o cubinho fantasma e clica para construir ou apagar.</p>
-          <p class="hint"><strong>Rato:</strong> botão direito + arrastar roda a vista; roda do rato aproxima e afasta dentro do canvas.</p>
-        </aside>
-      </div>
-    </section>
+      <div class="palette-full hidden" id="paletteFull" role="dialog" aria-label="Todos os blocos"></div>
+    </main>
+  </div>
 
-    <section class="panel preview-panel" aria-labelledby="preview-title">
-      <h2 id="preview-title">3. Pré-visualização 3D simples</h2>
-      <canvas id="preview" width="620" height="460" aria-label="Pré-visualização isométrica"></canvas>
-      <div class="view-tools">
-        <button data-view="front" type="button">Frente</button>
-        <button data-view="side" type="button">Lado</button>
-        <button data-view="top" type="button">Topo</button>
-        <button data-view="iso" type="button">3D</button>
-      </div>
-      <p class="hint">A rotação e o zoom do modo isométrico também atualizam esta previsualização.</p>
-      <ol class="instructions">
-        <li>No Minecraft Education/Bedrock, abre um mundo criativo como anfitrião.</li>
-        <li>Usa <code>/give @s structure_block</code> e coloca o Structure Block.</li>
-        <li>Muda para Load/Import e escolhe o mesmo ficheiro .mcstructure.</li>
-      </ol>
-    </section>
-  </main>
-
-  <p id="status" class="status" role="status">Pronto para construir.</p>
+  <p id="status" class="status" role="status" aria-live="polite"></p>
 
   <script type="module" src="./src/app.js"></script>
 </body>
