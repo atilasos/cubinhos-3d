@@ -45,10 +45,17 @@ export function createControls(camera, canvas) {
     dragging = false;
   });
 
+  canvas.addEventListener('pointercancel', () => { dragging = false; });
+
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const dir = Math.sign(e.deltaY);
-    state.distance = clamp(state.distance * (1 + dir * ZOOM_SPEED), DIST_MIN, DIST_MAX);
+    // Normalize deltaY to pixels regardless of deltaMode (line=16px, page=400px).
+    const px = e.deltaMode === 2 ? e.deltaY * 400
+             : e.deltaMode === 1 ? e.deltaY * 16
+             : e.deltaY;
+    // 0.001 ≈ 12% per ~120px notch (matches old behaviour for mouse wheels)
+    // and stays smooth for trackpad pixel deltas.
+    state.distance = clamp(state.distance * (1 + px * 0.001), DIST_MIN, DIST_MAX);
     apply();
   }, { passive: false });
 
