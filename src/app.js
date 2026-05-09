@@ -5,7 +5,7 @@ import { createControls, attachViewCube } from './controls.js';
 import { createGhost } from './ghost.js';
 import { castRay } from './raycaster.js';
 import { createTools } from './tools.js';
-import { createModel, createHistory, deserializeModel, serializeModel } from './model.js';
+import { createModel, createHistory, deserializeModel, serializeModel, clearModel } from './model.js';
 import { exportMcStructure, importMcStructure, downloadMcStructure } from './mcstructure.js';
 import { paletteBlocks, BLOCK_BY_ID } from './blocks.js';
 import { buildTextureCanvasData } from './textures.js';
@@ -188,6 +188,15 @@ function loadLocal() {
   } catch { return false; }
 }
 
+document.getElementById('newProject').addEventListener('click', () => {
+  const hasContent = model.cells.some((id) => id && id !== 'minecraft:air');
+  if (hasContent && !confirm('Começar uma nova construção apaga a actual. Continuar?')) return;
+  clearModel(model);
+  history.commit(model);
+  meshes.rebuild(model);
+  saveLocal();
+  status('Nova construção começada.');
+});
 document.getElementById('saveLocal').addEventListener('click', () => {
   saveLocal();
   status('Projecto guardado no browser.');
