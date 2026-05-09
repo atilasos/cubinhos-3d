@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { buildThreeTexture } from './textures.js';
+import { createBlockTexture } from './textures.js';
+import { ATLASES } from './atlas.js';
 import { BLOCK_BY_ID } from './blocks.js';
 
-export function createGhost(scene) {
-  const geo = new THREE.BoxGeometry(1.001, 1.001, 1.001); // ligeiramente maior para evitar z-fighting
+export function createGhost(scene, atlases) {
+  const geo = new THREE.BoxGeometry(1.001, 1.001, 1.001);
   const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.5, depthWrite: false });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.visible = false;
@@ -19,10 +20,10 @@ export function createGhost(scene) {
 
   function showBuild(blockId, voxel) {
     const block = BLOCK_BY_ID[blockId];
-    if (!block) { mesh.visible = false; return; }
+    if (!block || block.empty || block.atlas == null) { mesh.visible = false; return; }
     if (currentTextureKey !== blockId) {
       mat.map?.dispose();
-      mat.map = buildThreeTexture(THREE, block.color);
+      mat.map = createBlockTexture(block, atlases[block.atlas], ATLASES[block.atlas]);
       mat.needsUpdate = true;
       currentTextureKey = blockId;
     }
