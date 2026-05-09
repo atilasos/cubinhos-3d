@@ -1,19 +1,16 @@
 import * as THREE from 'three';
-import { buildThreeTexture } from './textures.js';
+import { createBlockMaterial } from './textures.js';
 import { paletteBlocks } from './blocks.js';
 
 const AIR = 'minecraft:air';
 const MAX_PER_TYPE = 32 * 32 * 32;
 
-// Cria uma "fábrica" de meshes instanciadas — uma InstancedMesh por bloco.
-// Mantém um índice (x,y,z)->instanceId para updates granulares.
-export function createVoxelMeshes(scene) {
+export function createVoxelMeshes(scene, atlases) {
   const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
   const meshesById = new Map();
 
   for (const block of paletteBlocks()) {
-    const tex = buildThreeTexture(THREE, block.color);
-    const mat = new THREE.MeshLambertMaterial({ map: tex });
+    const mat = createBlockMaterial(block, atlases);
     const mesh = new THREE.InstancedMesh(cubeGeo, mat, MAX_PER_TYPE);
     mesh.count = 0;
     mesh.userData.blockId = block.id;
@@ -56,13 +53,11 @@ export function createVoxelMeshes(scene) {
     const key = keyOf(x, y, z);
     const slot = entry.slots.get(key);
     if (slot === undefined) return;
-    // Mover a última instância para o slot a libertar (swap-and-pop).
     const last = entry.mesh.count - 1;
     if (slot !== last) {
       const m = new THREE.Matrix4();
       entry.mesh.getMatrixAt(last, m);
       entry.mesh.setMatrixAt(slot, m);
-      // Actualizar o key->slot da instância que foi movida.
       for (const [k, s] of entry.slots) if (s === last) { entry.slots.set(k, slot); break; }
     }
     entry.mesh.count -= 1;
