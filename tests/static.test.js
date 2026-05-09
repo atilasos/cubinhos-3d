@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 
 // ── index.html ────────────────────────────────────────────────────────────────
 
@@ -137,4 +137,25 @@ test('README mentions Windows (case-insensitive)', async () => {
 test('README mentions .mcstructure', async () => {
   const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
   assert.match(readme, /\.mcstructure/);
+});
+
+// ── assets/blocks/ atlas PNGs ─────────────────────────────────────────────────
+
+test('atlas PNGs exist in assets/blocks/', async () => {
+  for (const name of ['atlas-natural.png', 'atlas-cor.png', 'atlas-especial.png']) {
+    const path = new URL(`../assets/blocks/${name}`, import.meta.url);
+    const st = await stat(path);
+    assert.ok(st.isFile(), `${name} missing`);
+    assert.ok(st.size > 0, `${name} is empty`);
+  }
+});
+
+test('app.js imports loadBlockAtlases from textures', async () => {
+  const src = await readFile(new URL('../src/app.js', import.meta.url), 'utf8');
+  assert.match(src, /loadBlockAtlases/);
+});
+
+test('app.js imports ATLASES from atlas module', async () => {
+  const src = await readFile(new URL('../src/app.js', import.meta.url), 'utf8');
+  assert.match(src, /from '\.\/atlas\.js'/);
 });
