@@ -45,6 +45,25 @@ Fora de escopo:
 - texturas Minecraft oficiais (problemas de copyright — usamos procedurais);
 - tablets/toque (próxima fase).
 
+## Adicionar blocos novos
+
+A paleta tem 64 blocos correspondentes às células dos atlas em `assets/blocks/`:
+
+| Atlas | Grelha | Conteúdo |
+|---|---|---|
+| `atlas-natural.png` | 4×4 | naturais (relva, terra, troncos, …) |
+| `atlas-cor.png` | 8×4 | concrete (16) + wool (16) |
+| `atlas-especial.png` | 4×4 | especiais (gold, diamond, glowstone, …) |
+
+Para acrescentar um bloco:
+
+1. Edita o PNG correspondente preservando a grelha lógica (mesma divisão de células).
+2. Em `src/blocks.js`, acrescenta uma entrada com o ID `minecraft:*` real, `name`, `color` (hex aproximado), `category`, `atlas` e `(col, row)`.
+3. As coordenadas `col` e `row` são índices a partir de zero, com `(0, 0)` no canto superior-esquerdo do PNG.
+4. Se o atlas ficar cheio, aumenta `cols` ou `rows` em `src/atlas.js` e ajusta o PNG.
+
+A função pura `getAtlasTransform({cols, rows, col, row})` em `src/atlas.js` calcula `offset/repeat` para Three.js (com a inversão vertical UV).
+
 ## Desenvolvimento
 
 ```bash
