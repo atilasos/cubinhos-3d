@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, stat } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // ── index.html ────────────────────────────────────────────────────────────────
 
@@ -147,6 +149,18 @@ test('atlas PNGs exist in assets/blocks/', async () => {
     const st = await stat(path);
     assert.ok(st.isFile(), `${name} missing`);
     assert.ok(st.size > 0, `${name} is empty`);
+  }
+});
+
+test('atlas PNGs are tracked in git (will deploy to Pages)', () => {
+  const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+  const tracked = execFileSync('git', ['ls-files', 'assets/blocks/'], { cwd: repoRoot, encoding: 'utf8' })
+    .split('\n').filter(Boolean);
+  for (const name of ['atlas-natural.png', 'atlas-cor.png', 'atlas-especial.png']) {
+    assert.ok(
+      tracked.includes(`assets/blocks/${name}`),
+      `${name} exists on disk but is not git-tracked — won't ship to GitHub Pages`,
+    );
   }
 });
 
